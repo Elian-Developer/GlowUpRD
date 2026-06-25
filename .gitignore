@@ -1,0 +1,19 @@
+# Node / React
+**/node_modules/
+**/dist/
+**/build/
+
+# .NET
+**/bin/
+**/obj/
+.vs/
+**/.vs/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

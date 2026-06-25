@@ -1,0 +1,19 @@
+:root {
+  --font-body: Arial, sans-serif;
+  --font-display: Arial, sans-serif;
+  color: #172033;
+  background: #eef1f4;
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }
+* { font-style: normal; }
+html { min-width: 320px; background: #eef1f4; }
+body { min-width: 320px; min-height: 100svh; margin: 0; }
+button, input { font-family: inherit; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid rgba(42, 132, 139, 0.35); outline-offset: 3px; }
+::selection { color: #fff; background: #287f86; }
