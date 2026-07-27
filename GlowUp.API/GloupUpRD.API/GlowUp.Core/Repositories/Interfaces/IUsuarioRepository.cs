@@ -4,9 +4,9 @@ namespace GloupUpRD.API.Repositories.Interfaces;
 
 public interface IUsuarioRepository
 {
-    Task<User?> ObtenerPorIdAsync(ulong id, CancellationToken cancellationToken = default);
-    Task<User?> ObtenerPorCorreoAsync(string correo, CancellationToken cancellationToken = default);
-    Task<List<User>> BuscarAsync(string? termino, CancellationToken cancellationToken = default);
-    Task AgregarAsync(User usuario, CancellationToken cancellationToken = default);
+    Task<Usuario?> ObtenerPorIdAsync(long id, CancellationToken cancellationToken = default);
+    Task<Usuario?> ObtenerPorCorreoAsync(string correo, CancellationToken cancellationToken = default);
+    Task<List<Usuario>> BuscarAsync(string? termino, CancellationToken cancellationToken = default);
+    Task AgregarAsync(Usuario usuario, CancellationToken cancellationToken = default);
     Task GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

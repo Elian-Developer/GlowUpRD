@@ -1,14 +1,14 @@
-using GloupUpRD.API.DTOs.Citas;
+﻿using GloupUpRD.API.DTOs.Citas;
 
 namespace GloupUpRD.API.Services.Interfaces;
 
 public interface ICitaService
 {
-    Task<MaintenanceResult<IReadOnlyList<CitaResponse>>> BuscarAsync(ulong usuarioId, ulong negocioId, DateOnly desde, DateOnly hasta, ulong? sucursalId, ulong? empleadoId, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<CitaResponse>> ObtenerAsync(ulong usuarioId, ulong id, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<CitaResponse>> CrearAsync(ulong usuarioId, GuardarCitaRequest request, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<CitaResponse>> ActualizarAsync(ulong usuarioId, ulong id, GuardarCitaRequest request, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<bool>> EliminarAsync(ulong usuarioId, ulong id, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<CatalogoCitasResponse>> ObtenerCatalogosAsync(ulong usuarioId, ulong negocioId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<NegocioResumenResponse>> ObtenerNegociosAsync(ulong usuarioId, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<IReadOnlyList<CitaResponse>>> BuscarAsync(long usuarioId, long negocioId, DateOnly desde, DateOnly hasta, long? sucursalId, long? empleadoId, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<CitaResponse>> ObtenerAsync(long usuarioId, long id, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<CitaResponse>> CrearAsync(long usuarioId, GuardarCitaRequest request, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<CitaResponse>> ActualizarAsync(long usuarioId, long id, GuardarCitaRequest request, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<bool>> EliminarAsync(long usuarioId, long id, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<CatalogoCitasResponse>> ObtenerCatalogosAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<NegocioResumenResponse>> ObtenerNegociosAsync(long usuarioId, CancellationToken cancellationToken = default);
 }

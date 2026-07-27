@@ -1,4 +1,4 @@
-using GloupUpRD.API.DTOs.Autenticacion;
+﻿using GloupUpRD.API.DTOs.Autenticacion;
 using GloupUpRD.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -57,7 +57,7 @@ public class AutenticacionController : ControllerBase
     [ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UsuarioResponse>> ObtenerPorId(
-        ulong id,
+        long id,
         CancellationToken cancellationToken)
     {
         var usuario = await _authService.ObtenerPorIdAsync(id, cancellationToken);
@@ -78,7 +78,7 @@ public class AutenticacionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<UsuarioResponse>> Actualizar(
-        ulong id,
+        long id,
         [FromBody] ActualizarUsuarioRequest request,
         CancellationToken cancellationToken)
     {
@@ -100,7 +100,7 @@ public class AutenticacionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Desactivar(
-        ulong id,
+        long id,
         CancellationToken cancellationToken)
     {
         var desactivado = await _authService.DesactivarAsync(id, cancellationToken);

@@ -13,12 +13,19 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GlowUp.Core\GlowUp.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The app stores naive local timestamps (no explicit timezone), same as it did under MySQL's
+         DATETIME columns. Npgsql 8+ otherwise rejects writing DateTime.UtcNow (Kind=Utc) into
+         "timestamp without time zone" columns. -->
+    <RuntimeHostConfigurationOption Include="Npgsql.EnableLegacyTimestampBehavior" Value="true" />
   </ItemGroup>
 
 </Project>

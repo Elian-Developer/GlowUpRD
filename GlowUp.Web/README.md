@@ -18,8 +18,16 @@ datos del sitio elimina las cuentas de demostracion.
 
 ## Desarrollo con API
 
-Copia `.env.example` como `.env`, configura `VITE_AUTH_MODE=api` e inicia la
-API con IIS Express en `https://localhost:44352`. Luego ejecuta:
+El repo incluye una configuracion local ignorada por git en `.env` para usar la
+API de desarrollo con el perfil `http`:
+
+```bash
+VITE_AUTH_MODE=api
+VITE_API_URL=
+VITE_API_PROXY_TARGET=http://localhost:5297
+```
+
+Inicia la API desde `GlowUp.API` y luego ejecuta el frontend:
 
 ```bash
 npm install
@@ -27,5 +35,5 @@ npm run dev
 ```
 
 Vite publica la aplicacion en `http://localhost:5173` y redirige `/api` hacia
-IIS Express. Puedes cambiar el destino con `VITE_API_PROXY_TARGET`. Para un
+la API local. Puedes cambiar el destino con `VITE_API_PROXY_TARGET`. Para un
 despliegue con backend publico, configura `VITE_API_URL` con su URL HTTPS.

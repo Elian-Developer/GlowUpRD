@@ -14,34 +14,34 @@ public sealed class UsuarioRepository : IUsuarioRepository
         _context = context;
     }
 
-    public Task<User?> ObtenerPorIdAsync(ulong id, CancellationToken cancellationToken = default) =>
-        _context.Users.FirstOrDefaultAsync(usuario => usuario.Id == id, cancellationToken);
+    public Task<Usuario?> ObtenerPorIdAsync(long id, CancellationToken cancellationToken = default) =>
+        _context.Usuarios.FirstOrDefaultAsync(usuario => usuario.Id == id, cancellationToken);
 
-    public Task<User?> ObtenerPorCorreoAsync(
+    public Task<Usuario?> ObtenerPorCorreoAsync(
         string correo,
         CancellationToken cancellationToken = default) =>
-        _context.Users.FirstOrDefaultAsync(usuario => usuario.Email == correo, cancellationToken);
+        _context.Usuarios.FirstOrDefaultAsync(usuario => usuario.Correo == correo, cancellationToken);
 
-    public async Task<List<User>> BuscarAsync(
+    public async Task<List<Usuario>> BuscarAsync(
         string? termino,
         CancellationToken cancellationToken = default)
     {
-        var consulta = _context.Users.AsNoTracking().AsQueryable();
+        var consulta = _context.Usuarios.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(termino))
         {
             var filtro = termino.Trim();
             consulta = consulta.Where(usuario =>
-                usuario.FirstName.Contains(filtro) ||
-                usuario.LastName.Contains(filtro) ||
-                usuario.Email.Contains(filtro));
+                usuario.Nombre.Contains(filtro) ||
+                usuario.Apellido.Contains(filtro) ||
+                usuario.Correo.Contains(filtro));
         }
 
-        return await consulta.OrderBy(usuario => usuario.FirstName).ToListAsync(cancellationToken);
+        return await consulta.OrderBy(usuario => usuario.Nombre).ToListAsync(cancellationToken);
     }
 
-    public Task AgregarAsync(User usuario, CancellationToken cancellationToken = default) =>
-        _context.Users.AddAsync(usuario, cancellationToken).AsTask();
+    public Task AgregarAsync(Usuario usuario, CancellationToken cancellationToken = default) =>
+        _context.Usuarios.AddAsync(usuario, cancellationToken).AsTask();
 
     public async Task GuardarCambiosAsync(CancellationToken cancellationToken = default) =>
         await _context.SaveChangesAsync(cancellationToken);

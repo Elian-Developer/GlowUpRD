@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using GloupUpRD.API.DTOs.Servicios;
 using GloupUpRD.API.Services.Interfaces;
@@ -14,21 +14,21 @@ public sealed class ServiciosController : ControllerBase
     public ServiciosController(IServicioService service) => _service = service;
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ServicioResponse>>> Buscar([FromQuery] ulong negocioId, [FromQuery] bool incluirInactivos, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<ServicioResponse>>> Buscar([FromQuery] long negocioId, [FromQuery] bool incluirInactivos, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         return Convert(await _service.BuscarAsync(userId, negocioId, incluirInactivos, cancellationToken));
     }
 
     [HttpGet("{id:long}")]
-    public async Task<ActionResult<ServicioResponse>> Obtener(ulong id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ServicioResponse>> Obtener(long id, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         return Convert(await _service.ObtenerAsync(userId, id, cancellationToken));
     }
 
     [HttpGet("categorias")]
-    public async Task<ActionResult<IReadOnlyList<CategoriaServicioResponse>>> Categorias([FromQuery] ulong negocioId, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<CategoriaServicioResponse>>> Categorias([FromQuery] long negocioId, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         return Convert(await _service.ObtenerCategoriasAsync(userId, negocioId, cancellationToken));
@@ -45,21 +45,21 @@ public sealed class ServiciosController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    public async Task<ActionResult<ServicioResponse>> Actualizar(ulong id, GuardarServicioRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ServicioResponse>> Actualizar(long id, GuardarServicioRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         return Convert(await _service.ActualizarAsync(userId, id, request, cancellationToken));
     }
 
     [HttpDelete("{id:long}")]
-    public async Task<IActionResult> Eliminar(ulong id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Eliminar(long id, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         var result = await _service.EliminarAsync(userId, id, cancellationToken);
         return result.Status == MaintenanceStatus.Success ? NoContent() : Convert(result).Result!;
     }
 
-    private bool TryGetUserId(out ulong id) => ulong.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub), out id);
+    private bool TryGetUserId(out long id) => long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub), out id);
     private ActionResult<T> Convert<T>(MaintenanceResult<T> result) => result.Status switch
     {
         MaintenanceStatus.Success => Ok(result.Data),

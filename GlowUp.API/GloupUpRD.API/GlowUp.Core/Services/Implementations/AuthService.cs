@@ -14,12 +14,12 @@ namespace GloupUpRD.API.Services.Implementations;
 public sealed class AuthService : IAuthService
 {
     private readonly IUsuarioRepository _usuarios;
-    private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly IPasswordHasher<Usuario> _passwordHasher;
     private readonly IConfiguration _configuration;
 
     public AuthService(
         IUsuarioRepository usuarios,
-        IPasswordHasher<User> passwordHasher,
+        IPasswordHasher<Usuario> passwordHasher,
         IConfiguration configuration)
     {
         _usuarios = usuarios;
@@ -37,16 +37,16 @@ public sealed class AuthService : IAuthService
             return null;
         }
 
-        var usuario = new User
+        var usuario = new Usuario
         {
-            FirstName = request.Nombre.Trim(),
-            LastName = request.Apellido.Trim(),
-            Email = correo,
-            Status = "active",
-            CreatedAt = DateTime.UtcNow
+            Nombre = request.Nombre.Trim(),
+            Apellido = request.Apellido.Trim(),
+            Correo = correo,
+            Estado = "active",
+            CreadoEn = DateTime.UtcNow
         };
 
-        usuario.PasswordHash = _passwordHasher.HashPassword(usuario, request.Password);
+        usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, request.Password);
         await _usuarios.AgregarAsync(usuario, cancellationToken);
         await _usuarios.GuardarCambiosAsync(cancellationToken);
 
@@ -60,13 +60,13 @@ public sealed class AuthService : IAuthService
         var usuario = await _usuarios.ObtenerPorCorreoAsync(
             NormalizarCorreo(request.Correo), cancellationToken);
 
-        if (usuario is null || usuario.Status != "active")
+        if (usuario is null || usuario.Estado != "active")
         {
             return null;
         }
 
         var verificacion = _passwordHasher.VerifyHashedPassword(
-            usuario, usuario.PasswordHash, request.Password);
+            usuario, usuario.ContrasenaHash, request.Password);
 
         if (verificacion == PasswordVerificationResult.Failed)
         {
@@ -75,19 +75,19 @@ public sealed class AuthService : IAuthService
 
         if (verificacion == PasswordVerificationResult.SuccessRehashNeeded)
         {
-            usuario.PasswordHash = _passwordHasher.HashPassword(usuario, request.Password);
-            usuario.UpdatedAt = DateTime.UtcNow;
+            usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, request.Password);
+            usuario.ActualizadoEn = DateTime.UtcNow;
             await _usuarios.GuardarCambiosAsync(cancellationToken);
         }
 
-        usuario.LastLoginAt = DateTime.UtcNow;
+        usuario.UltimoLoginEn = DateTime.UtcNow;
         await _usuarios.GuardarCambiosAsync(cancellationToken);
 
         return CrearToken(usuario);
     }
 
     public async Task<UsuarioResponse?> ObtenerPorIdAsync(
-        ulong id,
+        long id,
         CancellationToken cancellationToken = default)
     {
         var usuario = await _usuarios.ObtenerPorIdAsync(id, cancellationToken);
@@ -100,7 +100,7 @@ public sealed class AuthService : IAuthService
         (await _usuarios.BuscarAsync(termino, cancellationToken)).Select(Mapear).ToList();
 
     public async Task<ActualizarUsuarioResultado> ActualizarAsync(
-        ulong id,
+        long id,
         ActualizarUsuarioRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -117,17 +117,17 @@ public sealed class AuthService : IAuthService
             return new(ActualizarUsuarioEstado.CorreoDuplicado);
         }
 
-        usuario.FirstName = request.Nombre.Trim();
-        usuario.LastName = request.Apellido.Trim();
-        usuario.Email = correo;
-        usuario.UpdatedAt = DateTime.UtcNow;
+        usuario.Nombre = request.Nombre.Trim();
+        usuario.Apellido = request.Apellido.Trim();
+        usuario.Correo = correo;
+        usuario.ActualizadoEn = DateTime.UtcNow;
 
         await _usuarios.GuardarCambiosAsync(cancellationToken);
         return new(ActualizarUsuarioEstado.Exitoso, Mapear(usuario));
     }
 
     public async Task<bool> DesactivarAsync(
-        ulong id,
+        long id,
         CancellationToken cancellationToken = default)
     {
         var usuario = await _usuarios.ObtenerPorIdAsync(id, cancellationToken);
@@ -136,13 +136,13 @@ public sealed class AuthService : IAuthService
             return false;
         }
 
-        usuario.Status = "inactive";
-        usuario.UpdatedAt = DateTime.UtcNow;
+        usuario.Estado = "inactive";
+        usuario.ActualizadoEn = DateTime.UtcNow;
         await _usuarios.GuardarCambiosAsync(cancellationToken);
         return true;
     }
 
-    private LoginResponse CrearToken(User usuario)
+    private LoginResponse CrearToken(Usuario usuario)
     {
         var key = _configuration["Jwt:Key"]!;
         var expirationMinutes = _configuration.GetValue("Jwt:ExpirationMinutes", 60);
@@ -150,7 +150,7 @@ public sealed class AuthService : IAuthService
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, usuario.Email),
+            new Claim(JwtRegisteredClaimNames.Email, usuario.Correo),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         var credentials = new SigningCredentials(
@@ -169,13 +169,13 @@ public sealed class AuthService : IAuthService
             Mapear(usuario));
     }
 
-    private static UsuarioResponse Mapear(User usuario) => new(
+    private static UsuarioResponse Mapear(Usuario usuario) => new(
         usuario.Id,
-        usuario.FirstName,
-        usuario.LastName,
-        usuario.Email,
-        usuario.Status == "active",
-        usuario.CreatedAt);
+        usuario.Nombre,
+        usuario.Apellido,
+        usuario.Correo,
+        usuario.Estado == "active",
+        usuario.CreadoEn);
 
     private static string NormalizarCorreo(string correo) => correo.Trim().ToLowerInvariant();
 

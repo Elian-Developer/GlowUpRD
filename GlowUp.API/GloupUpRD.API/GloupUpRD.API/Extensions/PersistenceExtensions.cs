@@ -14,9 +14,7 @@ public static class PersistenceExtensions
                 "Connection string 'DefaultConnection' was not found.");
 
         services.AddDbContext<GlowUpDbContext>(options =>
-            options.UseMySql(
-                connectionString,
-                new MySqlServerVersion(new Version(8, 0, 0))));
+            options.UseNpgsql(connectionString));
 
         //services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         //services.AddScoped<IUnitOfWork, UnitOfWork>();

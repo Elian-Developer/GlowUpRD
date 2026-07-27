@@ -10,32 +10,32 @@ public sealed class ServicioRepository : IServicioRepository
     private readonly GlowUpDbContext _context;
     public ServicioRepository(GlowUpDbContext context) => _context = context;
 
-    public Task<bool> UsuarioTieneAccesoAsync(ulong usuarioId, ulong negocioId, CancellationToken cancellationToken = default) =>
-        _context.Businesses.AnyAsync(business => business.Id == negocioId && business.Status == "active" &&
-            (business.OwnerUserId == usuarioId || business.BusinessMembers.Any(member => member.UserId == usuarioId && member.Status == "active")), cancellationToken);
+    public Task<bool> UsuarioTieneAccesoAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default) =>
+        _context.Negocios.AnyAsync(negocio => negocio.Id == negocioId && negocio.Estado == "active" &&
+            (negocio.UsuarioPropietarioId == usuarioId || negocio.MiembrosNegocios.Any(member => member.UsuarioId == usuarioId && member.Estado == "active")), cancellationToken);
 
-    public Task<List<Service>> BuscarAsync(ulong negocioId, bool incluirInactivos, CancellationToken cancellationToken = default) =>
-        _context.Services.AsNoTracking().Include(item => item.Category)
-            .Where(item => item.BusinessId == negocioId && (incluirInactivos || item.IsActive != false))
-            .OrderBy(item => item.Name).ToListAsync(cancellationToken);
+    public Task<List<Servicio>> BuscarAsync(long negocioId, bool incluirInactivos, CancellationToken cancellationToken = default) =>
+        _context.Servicios.AsNoTracking().Include(item => item.Categoria)
+            .Where(item => item.NegocioId == negocioId && (incluirInactivos || item.Activo))
+            .OrderBy(item => item.Nombre).ToListAsync(cancellationToken);
 
-    public Task<Service?> ObtenerAsync(ulong id, bool tracking, CancellationToken cancellationToken = default)
+    public Task<Servicio?> ObtenerAsync(long id, bool tracking, CancellationToken cancellationToken = default)
     {
-        var query = _context.Services.Include(item => item.Category).AsQueryable();
+        var query = _context.Servicios.Include(item => item.Categoria).AsQueryable();
         if (!tracking) query = query.AsNoTracking();
         return query.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
     }
 
-    public Task<bool> CategoriaValidaAsync(ulong negocioId, ulong categoriaId, CancellationToken cancellationToken = default) =>
-        _context.ServiceCategories.AnyAsync(item => item.Id == categoriaId && item.BusinessId == negocioId && item.IsActive != false, cancellationToken);
+    public Task<bool> CategoriaValidaAsync(long negocioId, long categoriaId, CancellationToken cancellationToken = default) =>
+        _context.CategoriasServicios.AnyAsync(item => item.Id == categoriaId && item.NegocioId == negocioId && item.Activo, cancellationToken);
 
-    public Task<bool> NombreDuplicadoAsync(ulong negocioId, string nombre, ulong? excluirId, CancellationToken cancellationToken = default) =>
-        _context.Services.AnyAsync(item => item.BusinessId == negocioId && item.Name == nombre && (!excluirId.HasValue || item.Id != excluirId.Value), cancellationToken);
+    public Task<bool> NombreDuplicadoAsync(long negocioId, string nombre, long? excluirId, CancellationToken cancellationToken = default) =>
+        _context.Servicios.AnyAsync(item => item.NegocioId == negocioId && item.Nombre == nombre && (!excluirId.HasValue || item.Id != excluirId.Value), cancellationToken);
 
-    public Task<List<ServiceCategory>> ObtenerCategoriasAsync(ulong negocioId, CancellationToken cancellationToken = default) =>
-        _context.ServiceCategories.AsNoTracking().Where(item => item.BusinessId == negocioId && item.IsActive != false)
-            .OrderBy(item => item.DisplayOrder).ThenBy(item => item.Name).ToListAsync(cancellationToken);
+    public Task<List<CategoriasServicio>> ObtenerCategoriasAsync(long negocioId, CancellationToken cancellationToken = default) =>
+        _context.CategoriasServicios.AsNoTracking().Where(item => item.NegocioId == negocioId && item.Activo)
+            .OrderBy(item => item.Orden).ThenBy(item => item.Nombre).ToListAsync(cancellationToken);
 
-    public Task AgregarAsync(Service servicio, CancellationToken cancellationToken = default) => _context.Services.AddAsync(servicio, cancellationToken).AsTask();
+    public Task AgregarAsync(Servicio servicio, CancellationToken cancellationToken = default) => _context.Servicios.AddAsync(servicio, cancellationToken).AsTask();
     public async Task GuardarCambiosAsync(CancellationToken cancellationToken = default) => await _context.SaveChangesAsync(cancellationToken);
 }

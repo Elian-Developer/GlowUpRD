@@ -1,13 +1,13 @@
-using GloupUpRD.API.DTOs.Servicios;
+﻿using GloupUpRD.API.DTOs.Servicios;
 
 namespace GloupUpRD.API.Services.Interfaces;
 
 public interface IServicioService
 {
-    Task<MaintenanceResult<IReadOnlyList<ServicioResponse>>> BuscarAsync(ulong usuarioId, ulong negocioId, bool incluirInactivos, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<ServicioResponse>> ObtenerAsync(ulong usuarioId, ulong id, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<ServicioResponse>> CrearAsync(ulong usuarioId, GuardarServicioRequest request, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<ServicioResponse>> ActualizarAsync(ulong usuarioId, ulong id, GuardarServicioRequest request, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<bool>> EliminarAsync(ulong usuarioId, ulong id, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>> ObtenerCategoriasAsync(ulong usuarioId, ulong negocioId, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<IReadOnlyList<ServicioResponse>>> BuscarAsync(long usuarioId, long negocioId, bool incluirInactivos, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<ServicioResponse>> ObtenerAsync(long usuarioId, long id, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<ServicioResponse>> CrearAsync(long usuarioId, GuardarServicioRequest request, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<ServicioResponse>> ActualizarAsync(long usuarioId, long id, GuardarServicioRequest request, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<bool>> EliminarAsync(long usuarioId, long id, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>> ObtenerCategoriasAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default);
 }

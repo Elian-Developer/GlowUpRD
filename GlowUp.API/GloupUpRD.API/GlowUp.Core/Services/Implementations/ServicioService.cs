@@ -10,64 +10,64 @@ public sealed class ServicioService : IServicioService
     private readonly IServicioRepository _repository;
     public ServicioService(IServicioRepository repository) => _repository = repository;
 
-    public async Task<MaintenanceResult<IReadOnlyList<ServicioResponse>>> BuscarAsync(ulong usuarioId, ulong negocioId, bool incluirInactivos, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<IReadOnlyList<ServicioResponse>>> BuscarAsync(long usuarioId, long negocioId, bool incluirInactivos, CancellationToken cancellationToken = default)
     {
         if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, negocioId, cancellationToken)) return MaintenanceResult<IReadOnlyList<ServicioResponse>>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
-        var services = await _repository.BuscarAsync(negocioId, incluirInactivos, cancellationToken);
-        return MaintenanceResult<IReadOnlyList<ServicioResponse>>.Ok(services.Select(Map).ToList());
+        var servicios = await _repository.BuscarAsync(negocioId, incluirInactivos, cancellationToken);
+        return MaintenanceResult<IReadOnlyList<ServicioResponse>>.Ok(servicios.Select(Map).ToList());
     }
 
-    public async Task<MaintenanceResult<ServicioResponse>> ObtenerAsync(ulong usuarioId, ulong id, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<ServicioResponse>> ObtenerAsync(long usuarioId, long id, CancellationToken cancellationToken = default)
     {
-        var service = await _repository.ObtenerAsync(id, false, cancellationToken);
-        if (service is null) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
-        if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, service.BusinessId, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este servicio.");
-        return MaintenanceResult<ServicioResponse>.Ok(Map(service));
+        var servicio = await _repository.ObtenerAsync(id, false, cancellationToken);
+        if (servicio is null) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
+        if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, servicio.NegocioId, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este servicio.");
+        return MaintenanceResult<ServicioResponse>.Ok(Map(servicio));
     }
 
-    public async Task<MaintenanceResult<ServicioResponse>> CrearAsync(ulong usuarioId, GuardarServicioRequest request, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<ServicioResponse>> CrearAsync(long usuarioId, GuardarServicioRequest request, CancellationToken cancellationToken = default)
     {
         var error = await ValidateAsync(usuarioId, request, null, cancellationToken);
         if (error is not null) return error;
-        var service = new Service { BusinessId = request.NegocioId, CategoryId = request.CategoriaId, Name = request.Nombre.Trim(), Description = Normalize(request.Descripcion), DurationMinutes = request.DuracionMinutos, Price = request.Precio, BufferBeforeMinutes = request.MinutosAntes, BufferAfterMinutes = request.MinutosDespues, IsActive = request.Activo, CreatedAt = DateTime.UtcNow };
-        await _repository.AgregarAsync(service, cancellationToken);
+        var servicio = new Servicio { NegocioId = request.NegocioId, CategoriaId = request.CategoriaId, Nombre = request.Nombre.Trim(), Descripcion = Normalize(request.Descripcion), DuracionMinutos = request.DuracionMinutos, Precio = request.Precio, BufferAntesMinutos = request.MinutosAntes, BufferDespuesMinutos = request.MinutosDespues, Activo = request.Activo, CreadoEn = DateTime.UtcNow };
+        await _repository.AgregarAsync(servicio, cancellationToken);
         await _repository.GuardarCambiosAsync(cancellationToken);
-        return await ReloadAsync(service.Id, cancellationToken);
+        return await ReloadAsync(servicio.Id, cancellationToken);
     }
 
-    public async Task<MaintenanceResult<ServicioResponse>> ActualizarAsync(ulong usuarioId, ulong id, GuardarServicioRequest request, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<ServicioResponse>> ActualizarAsync(long usuarioId, long id, GuardarServicioRequest request, CancellationToken cancellationToken = default)
     {
-        var service = await _repository.ObtenerAsync(id, true, cancellationToken);
-        if (service is null) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
-        if (service.BusinessId != request.NegocioId) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Invalid, "No se puede mover el servicio a otro negocio.");
+        var servicio = await _repository.ObtenerAsync(id, true, cancellationToken);
+        if (servicio is null) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
+        if (servicio.NegocioId != request.NegocioId) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Invalid, "No se puede mover el servicio a otro negocio.");
         var error = await ValidateAsync(usuarioId, request, id, cancellationToken);
         if (error is not null) return error;
 
-        service.CategoryId = request.CategoriaId; service.Name = request.Nombre.Trim(); service.Description = Normalize(request.Descripcion);
-        service.DurationMinutes = request.DuracionMinutos; service.Price = request.Precio; service.BufferBeforeMinutes = request.MinutosAntes;
-        service.BufferAfterMinutes = request.MinutosDespues; service.IsActive = request.Activo; service.UpdatedAt = DateTime.UtcNow;
+        servicio.CategoriaId = request.CategoriaId; servicio.Nombre = request.Nombre.Trim(); servicio.Descripcion = Normalize(request.Descripcion);
+        servicio.DuracionMinutos = request.DuracionMinutos; servicio.Precio = request.Precio; servicio.BufferAntesMinutos = request.MinutosAntes;
+        servicio.BufferDespuesMinutos = request.MinutosDespues; servicio.Activo = request.Activo; servicio.ActualizadoEn = DateTime.UtcNow;
         await _repository.GuardarCambiosAsync(cancellationToken);
-        return await ReloadAsync(service.Id, cancellationToken);
+        return await ReloadAsync(servicio.Id, cancellationToken);
     }
 
-    public async Task<MaintenanceResult<bool>> EliminarAsync(ulong usuarioId, ulong id, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<bool>> EliminarAsync(long usuarioId, long id, CancellationToken cancellationToken = default)
     {
-        var service = await _repository.ObtenerAsync(id, true, cancellationToken);
-        if (service is null) return MaintenanceResult<bool>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
-        if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, service.BusinessId, cancellationToken)) return MaintenanceResult<bool>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este servicio.");
-        service.IsActive = false; service.UpdatedAt = DateTime.UtcNow;
+        var servicio = await _repository.ObtenerAsync(id, true, cancellationToken);
+        if (servicio is null) return MaintenanceResult<bool>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
+        if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, servicio.NegocioId, cancellationToken)) return MaintenanceResult<bool>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este servicio.");
+        servicio.Activo = false; servicio.ActualizadoEn = DateTime.UtcNow;
         await _repository.GuardarCambiosAsync(cancellationToken);
         return MaintenanceResult<bool>.Ok(true);
     }
 
-    public async Task<MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>> ObtenerCategoriasAsync(ulong usuarioId, ulong negocioId, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>> ObtenerCategoriasAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default)
     {
         if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, negocioId, cancellationToken)) return MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
-        var categories = await _repository.ObtenerCategoriasAsync(negocioId, cancellationToken);
-        return MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>.Ok(categories.Select(item => new CategoriaServicioResponse(item.Id, item.Name, item.Description)).ToList());
+        var categorias = await _repository.ObtenerCategoriasAsync(negocioId, cancellationToken);
+        return MaintenanceResult<IReadOnlyList<CategoriaServicioResponse>>.Ok(categorias.Select(item => new CategoriaServicioResponse(item.Id, item.Nombre, item.Descripcion)).ToList());
     }
 
-    private async Task<MaintenanceResult<ServicioResponse>?> ValidateAsync(ulong usuarioId, GuardarServicioRequest request, ulong? excludeId, CancellationToken cancellationToken)
+    private async Task<MaintenanceResult<ServicioResponse>?> ValidateAsync(long usuarioId, GuardarServicioRequest request, long? excludeId, CancellationToken cancellationToken)
     {
         if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, request.NegocioId, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
         if (request.CategoriaId.HasValue && !await _repository.CategoriaValidaAsync(request.NegocioId, request.CategoriaId.Value, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Invalid, "La categoría no pertenece al negocio o está inactiva.");
@@ -76,10 +76,10 @@ public sealed class ServicioService : IServicioService
     }
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private async Task<MaintenanceResult<ServicioResponse>> ReloadAsync(ulong id, CancellationToken cancellationToken)
+    private async Task<MaintenanceResult<ServicioResponse>> ReloadAsync(long id, CancellationToken cancellationToken)
     {
-        var service = await _repository.ObtenerAsync(id, false, cancellationToken);
-        return service is null ? MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.NotFound, "No se pudo recargar el servicio.") : MaintenanceResult<ServicioResponse>.Ok(Map(service));
+        var servicio = await _repository.ObtenerAsync(id, false, cancellationToken);
+        return servicio is null ? MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.NotFound, "No se pudo recargar el servicio.") : MaintenanceResult<ServicioResponse>.Ok(Map(servicio));
     }
-    private static ServicioResponse Map(Service item) => new(item.Id, item.BusinessId, item.CategoryId, item.Category?.Name, item.Name, item.Description, item.DurationMinutes, item.Price, item.BufferBeforeMinutes, item.BufferAfterMinutes, item.IsActive != false);
+    private static ServicioResponse Map(Servicio item) => new(item.Id, item.NegocioId, item.CategoriaId, item.Categoria?.Nombre, item.Nombre, item.Descripcion, item.DuracionMinutos, item.Precio, item.BufferAntesMinutos, item.BufferDespuesMinutos, item.Activo);
 }

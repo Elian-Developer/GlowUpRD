@@ -5,13 +5,13 @@ namespace GloupUpRD.API.Models;
 
 public partial class Role
 {
-    public ulong Id { get; set; }
+    public long Id { get; set; }
 
-    public string Name { get; set; } = null!;
+    public string Nombre { get; set; } = null!;
 
-    public string? Description { get; set; }
+    public string? Descripcion { get; set; }
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreadoEn { get; set; }
 
-    public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+    public virtual ICollection<UsuariosRole> UsuariosRoles { get; set; } = new List<UsuariosRole>();
 }

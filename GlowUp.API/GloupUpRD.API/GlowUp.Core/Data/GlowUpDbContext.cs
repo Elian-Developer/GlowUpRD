@@ -12,1036 +12,1047 @@ public partial class GlowUpDbContext : DbContext
     {
     }
 
-    public virtual DbSet<Appointment> Appointments { get; set; }
+    public virtual DbSet<AusenciasEmpleado> AusenciasEmpleados { get; set; }
 
-    public virtual DbSet<AppointmentService> AppointmentServices { get; set; }
+    public virtual DbSet<CategoriasServicio> CategoriasServicios { get; set; }
 
-    public virtual DbSet<AuditLog> AuditLogs { get; set; }
+    public virtual DbSet<Cita> Citas { get; set; }
 
-    public virtual DbSet<Branch> Branches { get; set; }
+    public virtual DbSet<Cliente> Clientes { get; set; }
 
-    public virtual DbSet<Business> Businesses { get; set; }
+    public virtual DbSet<ClientesNegocio> ClientesNegocios { get; set; }
 
-    public virtual DbSet<BusinessCustomer> BusinessCustomers { get; set; }
+    public virtual DbSet<Empleado> Empleados { get; set; }
 
-    public virtual DbSet<BusinessHour> BusinessHours { get; set; }
+    public virtual DbSet<HorariosEmpleado> HorariosEmpleados { get; set; }
 
-    public virtual DbSet<BusinessMember> BusinessMembers { get; set; }
+    public virtual DbSet<HorariosNegocio> HorariosNegocios { get; set; }
 
-    public virtual DbSet<BusinessSubscription> BusinessSubscriptions { get; set; }
+    public virtual DbSet<MiembrosNegocio> MiembrosNegocios { get; set; }
 
-    public virtual DbSet<Customer> Customers { get; set; }
+    public virtual DbSet<Negocio> Negocios { get; set; }
 
-    public virtual DbSet<Employee> Employees { get; set; }
+    public virtual DbSet<Notificacion> Notificaciones { get; set; }
 
-    public virtual DbSet<EmployeeSchedule> EmployeeSchedules { get; set; }
+    public virtual DbSet<Pago> Pagos { get; set; }
 
-    public virtual DbSet<EmployeeService> EmployeeServices { get; set; }
+    public virtual DbSet<PlanesSuscripcion> PlanesSuscripcions { get; set; }
 
-    public virtual DbSet<EmployeeTimeOff> EmployeeTimeOffs { get; set; }
+    public virtual DbSet<RegistroAuditoria> RegistrosAuditoria { get; set; }
 
-    public virtual DbSet<Notification> Notifications { get; set; }
-
-    public virtual DbSet<Payment> Payments { get; set; }
-
-    public virtual DbSet<Review> Reviews { get; set; }
+    public virtual DbSet<Resena> Resenas { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
-    public virtual DbSet<Service> Services { get; set; }
+    public virtual DbSet<Servicio> Servicios { get; set; }
 
-    public virtual DbSet<ServiceCategory> ServiceCategories { get; set; }
+    public virtual DbSet<ServicioCita> ServiciosCita { get; set; }
 
-    public virtual DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+    public virtual DbSet<ServiciosEmpleado> ServiciosEmpleados { get; set; }
 
-    public virtual DbSet<User> Users { get; set; }
+    public virtual DbSet<Sucursal> Sucursales { get; set; }
 
-    public virtual DbSet<UserRole> UserRoles { get; set; }
+    public virtual DbSet<SuscripcionesNegocio> SuscripcionesNegocios { get; set; }
+
+    public virtual DbSet<Usuario> Usuarios { get; set; }
+
+    public virtual DbSet<UsuariosRole> UsuariosRoles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder
-            .UseCollation("utf8mb4_unicode_ci")
-            .HasCharSet("utf8mb4");
-
-        modelBuilder.Entity<Appointment>(entity =>
+        modelBuilder.Entity<AusenciasEmpleado>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("ausencias_empleado_pkey");
 
-            entity.ToTable("appointments");
+            entity.ToTable("ausencias_empleado");
 
-            entity.HasIndex(e => e.BranchId, "idx_appointments_branch");
+            entity.HasIndex(e => e.EmpleadoId, "idx_ausencias_empleado_empleado");
 
-            entity.HasIndex(e => e.BusinessId, "idx_appointments_business");
-
-            entity.HasIndex(e => e.BusinessCustomerId, "idx_appointments_business_customer");
-
-            entity.HasIndex(e => e.CustomerId, "idx_appointments_customer");
-
-            entity.HasIndex(e => e.AppointmentDate, "idx_appointments_date");
-
-            entity.HasIndex(e => e.EmployeeId, "idx_appointments_employee");
-
-            entity.HasIndex(e => e.Status, "idx_appointments_status");
-
-            entity.HasIndex(e => new { e.EmployeeId, e.StartsAt, e.EndsAt }, "idx_appointments_time_range");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.AppointmentDate).HasColumnName("appointment_date");
-            entity.Property(e => e.BranchId).HasColumnName("branch_id");
-            entity.Property(e => e.BusinessCustomerId).HasColumnName("business_customer_id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CancellationReason)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'scheduled'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.IniciaEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("inicia_en");
+            entity.Property(e => e.Motivo)
                 .HasMaxLength(255)
-                .HasColumnName("cancellation_reason");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
-            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
-            entity.Property(e => e.EndsAt)
-                .HasColumnType("datetime")
-                .HasColumnName("ends_at");
-            entity.Property(e => e.Notes)
-                .HasColumnType("text")
-                .HasColumnName("notes");
-            entity.Property(e => e.StartsAt)
-                .HasColumnType("datetime")
-                .HasColumnName("starts_at");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'pending'")
-                .HasColumnType("enum('pending','confirmed','completed','cancelled','no_show')")
-                .HasColumnName("status");
-            entity.Property(e => e.TotalAmount)
-                .HasPrecision(10, 2)
-                .HasColumnName("total_amount");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+                .HasColumnName("motivo");
+            entity.Property(e => e.TerminaEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("termina_en");
 
-            entity.HasOne(d => d.Branch).WithMany(p => p.Appointments)
-                .HasForeignKey(d => d.BranchId)
+            entity.HasOne(d => d.Empleado).WithMany(p => p.AusenciasEmpleados)
+                .HasForeignKey(d => d.EmpleadoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_appointments_branch");
-
-            entity.HasOne(d => d.BusinessCustomer).WithMany(p => p.Appointments)
-                .HasForeignKey(d => d.BusinessCustomerId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_appointments_business_customer");
-
-            entity.HasOne(d => d.Business).WithMany(p => p.Appointments)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_appointments_business");
-
-            entity.HasOne(d => d.Customer).WithMany(p => p.Appointments)
-                .HasForeignKey(d => d.CustomerId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_appointments_customer");
-
-            entity.HasOne(d => d.Employee).WithMany(p => p.Appointments)
-                .HasForeignKey(d => d.EmployeeId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_appointments_employee");
+                .HasConstraintName("ausencias_empleado_empleado_id_fkey");
         });
 
-        modelBuilder.Entity<AppointmentService>(entity =>
+        modelBuilder.Entity<CategoriasServicio>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("categorias_servicio_pkey");
 
-            entity.ToTable("appointment_services");
+            entity.ToTable("categorias_servicio");
 
-            entity.HasIndex(e => e.AppointmentId, "idx_appointment_services_appointment");
+            entity.HasIndex(e => new { e.NegocioId, e.Nombre }, "categorias_servicio_negocio_id_nombre_key").IsUnique();
 
-            entity.HasIndex(e => e.ServiceId, "idx_appointment_services_service");
+            entity.HasIndex(e => e.NegocioId, "idx_categorias_servicio_negocio");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.AppointmentId).HasColumnName("appointment_id");
-            entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
-            entity.Property(e => e.Price)
-                .HasPrecision(10, 2)
-                .HasColumnName("price");
-            entity.Property(e => e.ServiceId).HasColumnName("service_id");
-            entity.Property(e => e.ServiceName)
-                .HasMaxLength(150)
-                .HasColumnName("service_name");
-
-            entity.HasOne(d => d.Appointment).WithMany(p => p.AppointmentServices)
-                .HasForeignKey(d => d.AppointmentId)
-                .HasConstraintName("fk_appointment_services_appointment");
-
-            entity.HasOne(d => d.Service).WithMany(p => p.AppointmentServices)
-                .HasForeignKey(d => d.ServiceId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_appointment_services_service");
-        });
-
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("audit_logs");
-
-            entity.HasIndex(e => e.BusinessId, "idx_audit_logs_business");
-
-            entity.HasIndex(e => new { e.EntityName, e.EntityId }, "idx_audit_logs_entity");
-
-            entity.HasIndex(e => e.UserId, "idx_audit_logs_user");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Action)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Activo)
+                .HasDefaultValue(true)
+                .HasColumnName("activo");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Nombre)
                 .HasMaxLength(100)
-                .HasColumnName("action");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.EntityId).HasColumnName("entity_id");
-            entity.Property(e => e.EntityName)
-                .HasMaxLength(100)
-                .HasColumnName("entity_name");
-            entity.Property(e => e.IpAddress)
-                .HasMaxLength(45)
-                .HasColumnName("ip_address");
-            entity.Property(e => e.NewValues)
-                .HasColumnType("json")
-                .HasColumnName("new_values");
-            entity.Property(e => e.OldValues)
-                .HasColumnType("json")
-                .HasColumnName("old_values");
-            entity.Property(e => e.UserAgent)
-                .HasMaxLength(500)
-                .HasColumnName("user_agent");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
+                .HasColumnName("nombre");
+            entity.Property(e => e.Orden)
+                .HasDefaultValue(0)
+                .HasColumnName("orden");
 
-            entity.HasOne(d => d.Business).WithMany(p => p.AuditLogs)
-                .HasForeignKey(d => d.BusinessId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_audit_logs_business");
-
-            entity.HasOne(d => d.User).WithMany(p => p.AuditLogs)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_audit_logs_user");
+            entity.HasOne(d => d.Negocio).WithMany(p => p.CategoriasServicios)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("categorias_servicio_negocio_id_fkey");
         });
 
-        modelBuilder.Entity<Branch>(entity =>
+        modelBuilder.Entity<Cita>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("citas_pkey");
 
-            entity.ToTable("branches");
+            entity.ToTable("citas");
 
-            entity.HasIndex(e => e.BusinessId, "idx_branches_business");
+            entity.HasIndex(e => e.ClienteId, "idx_citas_cliente");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.AddressLine)
+            entity.HasIndex(e => e.ClienteNegocioId, "idx_citas_cliente_negocio");
+
+            entity.HasIndex(e => e.EmpleadoId, "idx_citas_empleado");
+
+            entity.HasIndex(e => e.Estado, "idx_citas_estado");
+
+            entity.HasIndex(e => e.FechaCita, "idx_citas_fecha");
+
+            entity.HasIndex(e => e.NegocioId, "idx_citas_negocio");
+
+            entity.HasIndex(e => new { e.EmpleadoId, e.Inicio, e.Fin }, "idx_citas_rango_tiempo");
+
+            entity.HasIndex(e => e.SucursalId, "idx_citas_sucursal");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
+            entity.Property(e => e.ClienteNegocioId).HasColumnName("cliente_negocio_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'pending'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.FechaCita).HasColumnName("fecha_cita");
+            entity.Property(e => e.Fin)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("fin");
+            entity.Property(e => e.Inicio)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("inicio");
+            entity.Property(e => e.MotivoCancelacion)
                 .HasMaxLength(255)
-                .HasColumnName("address_line");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.City)
+                .HasColumnName("motivo_cancelacion");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Notas).HasColumnName("notas");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
+            entity.Property(e => e.Total)
+                .HasPrecision(10, 2)
+                .HasColumnName("total");
+
+            entity.HasOne(d => d.Cliente).WithMany(p => p.Cita)
+                .HasForeignKey(d => d.ClienteId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("citas_cliente_id_fkey");
+
+            entity.HasOne(d => d.ClienteNegocio).WithMany(p => p.Cita)
+                .HasForeignKey(d => d.ClienteNegocioId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("citas_cliente_negocio_id_fkey");
+
+            entity.HasOne(d => d.Empleado).WithMany(p => p.Cita)
+                .HasForeignKey(d => d.EmpleadoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("citas_empleado_id_fkey");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.Cita)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("citas_negocio_id_fkey");
+
+            entity.HasOne(d => d.Sucursal).WithMany(p => p.Cita)
+                .HasForeignKey(d => d.SucursalId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("citas_sucursal_id_fkey");
+        });
+
+        modelBuilder.Entity<Cliente>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("clientes_pkey");
+
+            entity.ToTable("clientes");
+
+            entity.HasIndex(e => e.Correo, "idx_clientes_correo");
+
+            entity.HasIndex(e => e.Telefono, "idx_clientes_telefono");
+
+            entity.HasIndex(e => e.UsuarioId, "idx_clientes_usuario");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.Apellido)
                 .HasMaxLength(100)
-                .HasColumnName("city");
-            entity.Property(e => e.Country)
-                .HasMaxLength(100)
-                .HasDefaultValueSql("'República Dominicana'")
-                .HasColumnName("country");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.IsMain).HasColumnName("is_main");
-            entity.Property(e => e.Latitude)
-                .HasPrecision(10, 7)
-                .HasColumnName("latitude");
-            entity.Property(e => e.Longitude)
-                .HasPrecision(10, 7)
-                .HasColumnName("longitude");
-            entity.Property(e => e.Name)
+                .HasColumnName("apellido");
+            entity.Property(e => e.Correo)
                 .HasMaxLength(150)
-                .HasColumnName("name");
-            entity.Property(e => e.Phone)
+                .HasColumnName("correo");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.FechaNacimiento).HasColumnName("fecha_nacimiento");
+            entity.Property(e => e.Genero)
+                .HasDefaultValueSql("'not_specified'::text")
+                .HasColumnName("genero");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(100)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Notas).HasColumnName("notas");
+            entity.Property(e => e.Telefono)
                 .HasMaxLength(30)
-                .HasColumnName("phone");
-            entity.Property(e => e.Province)
-                .HasMaxLength(100)
-                .HasColumnName("province");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'active'")
-                .HasColumnType("enum('active','inactive')")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+                .HasColumnName("telefono");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
 
-            entity.HasOne(d => d.Business).WithMany(p => p.Branches)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_branches_business");
+            entity.HasOne(d => d.Usuario).WithMany(p => p.Clientes)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("clientes_usuario_id_fkey");
         });
 
-        modelBuilder.Entity<Business>(entity =>
+        modelBuilder.Entity<ClientesNegocio>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("clientes_negocio_pkey");
 
-            entity.ToTable("businesses");
+            entity.ToTable("clientes_negocio");
 
-            entity.HasIndex(e => e.OwnerUserId, "idx_businesses_owner");
+            entity.HasIndex(e => new { e.NegocioId, e.ClienteId }, "clientes_negocio_negocio_id_cliente_id_key").IsUnique();
+
+            entity.HasIndex(e => e.ClienteId, "idx_clientes_negocio_cliente");
+
+            entity.HasIndex(e => e.NegocioId, "idx_clientes_negocio_negocio");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'active'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.NotasInternas).HasColumnName("notas_internas");
+            entity.Property(e => e.PrimeraVisitaEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("primera_visita_en");
+            entity.Property(e => e.TotalVisitas)
+                .HasDefaultValue(0)
+                .HasColumnName("total_visitas");
+            entity.Property(e => e.UltimaVisitaEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("ultima_visita_en");
+
+            entity.HasOne(d => d.Cliente).WithMany(p => p.ClientesNegocios)
+                .HasForeignKey(d => d.ClienteId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("clientes_negocio_cliente_id_fkey");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.ClientesNegocios)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("clientes_negocio_negocio_id_fkey");
+        });
+
+        modelBuilder.Entity<Empleado>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("empleados_pkey");
+
+            entity.ToTable("empleados");
+
+            entity.HasIndex(e => e.Estado, "idx_empleados_estado");
+
+            entity.HasIndex(e => e.NegocioId, "idx_empleados_negocio");
+
+            entity.HasIndex(e => e.SucursalId, "idx_empleados_sucursal");
+
+            entity.HasIndex(e => e.UsuarioId, "idx_empleados_usuario");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.Apellido)
+                .HasMaxLength(100)
+                .HasColumnName("apellido");
+            entity.Property(e => e.Biografia).HasColumnName("biografia");
+            entity.Property(e => e.Correo)
+                .HasMaxLength(150)
+                .HasColumnName("correo");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'active'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.FotoUrl)
+                .HasMaxLength(500)
+                .HasColumnName("foto_url");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(100)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Puesto)
+                .HasMaxLength(100)
+                .HasColumnName("puesto");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
+            entity.Property(e => e.Telefono)
+                .HasMaxLength(30)
+                .HasColumnName("telefono");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.Empleados)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("empleados_negocio_id_fkey");
+
+            entity.HasOne(d => d.Sucursal).WithMany(p => p.Empleados)
+                .HasForeignKey(d => d.SucursalId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("empleados_sucursal_id_fkey");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.Empleados)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("empleados_usuario_id_fkey");
+        });
+
+        modelBuilder.Entity<HorariosEmpleado>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("horarios_empleado_pkey");
+
+            entity.ToTable("horarios_empleado");
+
+            entity.HasIndex(e => new { e.EmpleadoId, e.DiaSemana }, "horarios_empleado_empleado_id_dia_semana_key").IsUnique();
+
+            entity.HasIndex(e => e.EmpleadoId, "idx_horarios_empleado_empleado");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Activo)
+                .HasDefaultValue(true)
+                .HasColumnName("activo");
+            entity.Property(e => e.DiaSemana).HasColumnName("dia_semana");
+            entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
+            entity.Property(e => e.IniciaA).HasColumnName("inicia_a");
+            entity.Property(e => e.TerminaA).HasColumnName("termina_a");
+
+            entity.HasOne(d => d.Empleado).WithMany(p => p.HorariosEmpleados)
+                .HasForeignKey(d => d.EmpleadoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("horarios_empleado_empleado_id_fkey");
+        });
+
+        modelBuilder.Entity<HorariosNegocio>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("horarios_negocio_pkey");
+
+            entity.ToTable("horarios_negocio");
+
+            entity.HasIndex(e => new { e.SucursalId, e.DiaSemana }, "horarios_negocio_sucursal_id_dia_semana_key").IsUnique();
+
+            entity.HasIndex(e => e.SucursalId, "idx_horarios_negocio_sucursal");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.AbreA).HasColumnName("abre_a");
+            entity.Property(e => e.Cerrado)
+                .HasDefaultValue(false)
+                .HasColumnName("cerrado");
+            entity.Property(e => e.CierraA).HasColumnName("cierra_a");
+            entity.Property(e => e.DiaSemana).HasColumnName("dia_semana");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
+
+            entity.HasOne(d => d.Sucursal).WithMany(p => p.HorariosNegocios)
+                .HasForeignKey(d => d.SucursalId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("horarios_negocio_sucursal_id_fkey");
+        });
+
+        modelBuilder.Entity<MiembrosNegocio>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("miembros_negocio_pkey");
+
+            entity.ToTable("miembros_negocio");
+
+            entity.HasIndex(e => e.NegocioId, "idx_miembros_negocio_negocio");
+
+            entity.HasIndex(e => e.SucursalId, "idx_miembros_negocio_sucursal");
+
+            entity.HasIndex(e => e.UsuarioId, "idx_miembros_negocio_usuario");
+
+            entity.HasIndex(e => new { e.NegocioId, e.UsuarioId }, "miembros_negocio_negocio_id_usuario_id_key").IsUnique();
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'active'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.RolMiembro).HasColumnName("rol_miembro");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.MiembrosNegocios)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("miembros_negocio_negocio_id_fkey");
+
+            entity.HasOne(d => d.Sucursal).WithMany(p => p.MiembrosNegocios)
+                .HasForeignKey(d => d.SucursalId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("miembros_negocio_sucursal_id_fkey");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.MiembrosNegocios)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("miembros_negocio_usuario_id_fkey");
+        });
+
+        modelBuilder.Entity<Negocio>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("negocios_pkey");
+
+            entity.ToTable("negocios");
+
+            entity.HasIndex(e => e.UsuarioPropietarioId, "idx_negocios_propietario");
 
             entity.HasIndex(e => e.Slug, "slug").IsUnique();
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BusinessType)
-                .HasDefaultValueSql("'mixed'")
-                .HasColumnType("enum('salon','barbershop','spa','mixed')")
-                .HasColumnName("business_type");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description)
-                .HasColumnType("text")
-                .HasColumnName("description");
-            entity.Property(e => e.Email)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.Correo)
                 .HasMaxLength(150)
-                .HasColumnName("email");
+                .HasColumnName("correo");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'active'::text")
+                .HasColumnName("estado");
             entity.Property(e => e.LogoUrl)
                 .HasMaxLength(500)
                 .HasColumnName("logo_url");
-            entity.Property(e => e.Name)
+            entity.Property(e => e.Nombre)
                 .HasMaxLength(150)
-                .HasColumnName("name");
-            entity.Property(e => e.OwnerUserId).HasColumnName("owner_user_id");
-            entity.Property(e => e.Phone)
-                .HasMaxLength(30)
-                .HasColumnName("phone");
+                .HasColumnName("nombre");
             entity.Property(e => e.Rnc)
                 .HasMaxLength(30)
                 .HasColumnName("rnc");
             entity.Property(e => e.Slug)
                 .HasMaxLength(180)
                 .HasColumnName("slug");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'active'")
-                .HasColumnType("enum('active','inactive','suspended')")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
-
-            entity.HasOne(d => d.OwnerUser).WithMany(p => p.Businesses)
-                .HasForeignKey(d => d.OwnerUserId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_business_owner");
-        });
-
-        modelBuilder.Entity<BusinessCustomer>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("business_customers");
-
-            entity.HasIndex(e => e.BusinessId, "idx_business_customers_business");
-
-            entity.HasIndex(e => e.CustomerId, "idx_business_customers_customer");
-
-            entity.HasIndex(e => new { e.BusinessId, e.CustomerId }, "uq_business_customer").IsUnique();
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
-            entity.Property(e => e.FirstVisitAt)
-                .HasColumnType("datetime")
-                .HasColumnName("first_visit_at");
-            entity.Property(e => e.InternalNotes)
-                .HasColumnType("text")
-                .HasColumnName("internal_notes");
-            entity.Property(e => e.LastVisitAt)
-                .HasColumnType("datetime")
-                .HasColumnName("last_visit_at");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'active'")
-                .HasColumnType("enum('active','inactive','blocked')")
-                .HasColumnName("status");
-            entity.Property(e => e.TotalVisits).HasColumnName("total_visits");
-
-            entity.HasOne(d => d.Business).WithMany(p => p.BusinessCustomers)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_business_customers_business");
-
-            entity.HasOne(d => d.Customer).WithMany(p => p.BusinessCustomers)
-                .HasForeignKey(d => d.CustomerId)
-                .HasConstraintName("fk_business_customers_customer");
-        });
-
-        modelBuilder.Entity<BusinessHour>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("business_hours");
-
-            entity.HasIndex(e => e.BranchId, "idx_business_hours_branch");
-
-            entity.HasIndex(e => new { e.BranchId, e.DayOfWeek }, "uq_business_hours_branch_day").IsUnique();
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BranchId).HasColumnName("branch_id");
-            entity.Property(e => e.ClosesAt)
-                .HasColumnType("time")
-                .HasColumnName("closes_at");
-            entity.Property(e => e.DayOfWeek).HasColumnName("day_of_week");
-            entity.Property(e => e.IsClosed).HasColumnName("is_closed");
-            entity.Property(e => e.OpensAt)
-                .HasColumnType("time")
-                .HasColumnName("opens_at");
-
-            entity.HasOne(d => d.Branch).WithMany(p => p.BusinessHours)
-                .HasForeignKey(d => d.BranchId)
-                .HasConstraintName("fk_business_hours_branch");
-        });
-
-        modelBuilder.Entity<BusinessMember>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("business_members");
-
-            entity.HasIndex(e => e.BranchId, "idx_business_members_branch");
-
-            entity.HasIndex(e => e.BusinessId, "idx_business_members_business");
-
-            entity.HasIndex(e => e.UserId, "idx_business_members_user");
-
-            entity.HasIndex(e => new { e.BusinessId, e.UserId }, "uq_business_member").IsUnique();
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BranchId).HasColumnName("branch_id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.MemberRole)
-                .HasColumnType("enum('owner','manager','employee','receptionist')")
-                .HasColumnName("member_role");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'active'")
-                .HasColumnType("enum('active','inactive')")
-                .HasColumnName("status");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
-
-            entity.HasOne(d => d.Branch).WithMany(p => p.BusinessMembers)
-                .HasForeignKey(d => d.BranchId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_business_members_branch");
-
-            entity.HasOne(d => d.Business).WithMany(p => p.BusinessMembers)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_business_members_business");
-
-            entity.HasOne(d => d.User).WithMany(p => p.BusinessMembers)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("fk_business_members_user");
-        });
-
-        modelBuilder.Entity<BusinessSubscription>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("business_subscriptions");
-
-            entity.HasIndex(e => e.BusinessId, "idx_business_subscriptions_business");
-
-            entity.HasIndex(e => e.PlanId, "idx_business_subscriptions_plan");
-
-            entity.HasIndex(e => e.Status, "idx_business_subscriptions_status");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.EndsAt)
-                .HasColumnType("datetime")
-                .HasColumnName("ends_at");
-            entity.Property(e => e.NextBillingAt)
-                .HasColumnType("datetime")
-                .HasColumnName("next_billing_at");
-            entity.Property(e => e.PlanId).HasColumnName("plan_id");
-            entity.Property(e => e.StartedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("started_at");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'trial'")
-                .HasColumnType("enum('trial','active','past_due','cancelled','expired')")
-                .HasColumnName("status");
-
-            entity.HasOne(d => d.Business).WithMany(p => p.BusinessSubscriptions)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_business_subscriptions_business");
-
-            entity.HasOne(d => d.Plan).WithMany(p => p.BusinessSubscriptions)
-                .HasForeignKey(d => d.PlanId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("fk_business_subscriptions_plan");
-        });
-
-        modelBuilder.Entity<Customer>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("customers");
-
-            entity.HasIndex(e => e.Email, "idx_customers_email");
-
-            entity.HasIndex(e => e.Phone, "idx_customers_phone");
-
-            entity.HasIndex(e => e.UserId, "idx_customers_user");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BirthDate).HasColumnName("birth_date");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Email)
-                .HasMaxLength(150)
-                .HasColumnName("email");
-            entity.Property(e => e.FirstName)
-                .HasMaxLength(100)
-                .HasColumnName("first_name");
-            entity.Property(e => e.Gender)
-                .HasDefaultValueSql("'not_specified'")
-                .HasColumnType("enum('female','male','other','not_specified')")
-                .HasColumnName("gender");
-            entity.Property(e => e.LastName)
-                .HasMaxLength(100)
-                .HasColumnName("last_name");
-            entity.Property(e => e.Notes)
-                .HasColumnType("text")
-                .HasColumnName("notes");
-            entity.Property(e => e.Phone)
+            entity.Property(e => e.Telefono)
                 .HasMaxLength(30)
-                .HasColumnName("phone");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
+                .HasColumnName("telefono");
+            entity.Property(e => e.TipoNegocio)
+                .HasDefaultValueSql("'mixed'::text")
+                .HasColumnName("tipo_negocio");
+            entity.Property(e => e.UsuarioPropietarioId).HasColumnName("usuario_propietario_id");
 
-            entity.HasOne(d => d.User).WithMany(p => p.Customers)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_customers_user");
+            entity.HasOne(d => d.UsuarioPropietario).WithMany(p => p.Negocios)
+                .HasForeignKey(d => d.UsuarioPropietarioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("negocios_usuario_propietario_id_fkey");
         });
 
-        modelBuilder.Entity<Employee>(entity =>
+        modelBuilder.Entity<Notificacion>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("notificaciones_pkey");
 
-            entity.ToTable("employees");
+            entity.ToTable("notificaciones");
 
-            entity.HasIndex(e => e.BranchId, "idx_employees_branch");
+            entity.HasIndex(e => e.CitaId, "idx_notificaciones_cita");
 
-            entity.HasIndex(e => e.BusinessId, "idx_employees_business");
+            entity.HasIndex(e => e.Estado, "idx_notificaciones_estado");
 
-            entity.HasIndex(e => e.Status, "idx_employees_status");
+            entity.HasIndex(e => e.NegocioId, "idx_notificaciones_negocio");
 
-            entity.HasIndex(e => e.UserId, "idx_employees_user");
+            entity.HasIndex(e => e.UsuarioId, "idx_notificaciones_usuario");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Bio)
-                .HasColumnType("text")
-                .HasColumnName("bio");
-            entity.Property(e => e.BranchId).HasColumnName("branch_id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Email)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Canal).HasColumnName("canal");
+            entity.Property(e => e.CitaId).HasColumnName("cita_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.EnviadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("enviado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'pending'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.LeidoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("leido_en");
+            entity.Property(e => e.Mensaje).HasColumnName("mensaje");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Tipo)
+                .HasMaxLength(100)
+                .HasColumnName("tipo");
+            entity.Property(e => e.Titulo)
                 .HasMaxLength(150)
-                .HasColumnName("email");
-            entity.Property(e => e.FirstName)
-                .HasMaxLength(100)
-                .HasColumnName("first_name");
-            entity.Property(e => e.LastName)
-                .HasMaxLength(100)
-                .HasColumnName("last_name");
-            entity.Property(e => e.Phone)
-                .HasMaxLength(30)
-                .HasColumnName("phone");
-            entity.Property(e => e.PhotoUrl)
-                .HasMaxLength(500)
-                .HasColumnName("photo_url");
-            entity.Property(e => e.Position)
-                .HasMaxLength(100)
-                .HasColumnName("position");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'active'")
-                .HasColumnType("enum('active','inactive','on_leave')")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
+                .HasColumnName("titulo");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
 
-            entity.HasOne(d => d.Branch).WithMany(p => p.Employees)
-                .HasForeignKey(d => d.BranchId)
+            entity.HasOne(d => d.Cita).WithMany(p => p.Notificaciones)
+                .HasForeignKey(d => d.CitaId)
                 .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_employees_branch");
+                .HasConstraintName("notificaciones_cita_id_fkey");
 
-            entity.HasOne(d => d.Business).WithMany(p => p.Employees)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_employees_business");
-
-            entity.HasOne(d => d.User).WithMany(p => p.Employees)
-                .HasForeignKey(d => d.UserId)
+            entity.HasOne(d => d.Negocio).WithMany(p => p.Notificaciones)
+                .HasForeignKey(d => d.NegocioId)
                 .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_employees_user");
+                .HasConstraintName("notificaciones_negocio_id_fkey");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.Notificaciones)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("notificaciones_usuario_id_fkey");
         });
 
-        modelBuilder.Entity<EmployeeSchedule>(entity =>
+        modelBuilder.Entity<Pago>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("pagos_pkey");
 
-            entity.ToTable("employee_schedules");
+            entity.ToTable("pagos");
 
-            entity.HasIndex(e => e.EmployeeId, "idx_employee_schedules_employee");
+            entity.HasIndex(e => e.CitaId, "idx_pagos_cita");
 
-            entity.HasIndex(e => new { e.EmployeeId, e.DayOfWeek }, "uq_employee_schedules_employee_day").IsUnique();
+            entity.HasIndex(e => e.Estado, "idx_pagos_estado");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.DayOfWeek).HasColumnName("day_of_week");
-            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
-            entity.Property(e => e.EndsAt)
-                .HasColumnType("time")
-                .HasColumnName("ends_at");
-            entity.Property(e => e.IsActive)
-                .IsRequired()
-                .HasDefaultValueSql("'1'")
-                .HasColumnName("is_active");
-            entity.Property(e => e.StartsAt)
-                .HasColumnType("time")
-                .HasColumnName("starts_at");
-
-            entity.HasOne(d => d.Employee).WithMany(p => p.EmployeeSchedules)
-                .HasForeignKey(d => d.EmployeeId)
-                .HasConstraintName("fk_employee_schedules_employee");
-        });
-
-        modelBuilder.Entity<EmployeeService>(entity =>
-        {
-            entity.HasKey(e => new { e.EmployeeId, e.ServiceId })
-                .HasName("PRIMARY")
-                .HasAnnotation("MySql:IndexPrefixLength", new[] { 0, 0 });
-
-            entity.ToTable("employee_services");
-
-            entity.HasIndex(e => e.ServiceId, "fk_employee_services_service");
-
-            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
-            entity.Property(e => e.ServiceId).HasColumnName("service_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-
-            entity.HasOne(d => d.Employee).WithMany(p => p.EmployeeServices)
-                .HasForeignKey(d => d.EmployeeId)
-                .HasConstraintName("fk_employee_services_employee");
-
-            entity.HasOne(d => d.Service).WithMany(p => p.EmployeeServices)
-                .HasForeignKey(d => d.ServiceId)
-                .HasConstraintName("fk_employee_services_service");
-        });
-
-        modelBuilder.Entity<EmployeeTimeOff>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("employee_time_off");
-
-            entity.HasIndex(e => e.EmployeeId, "idx_employee_time_off_employee");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
-            entity.Property(e => e.EndsAt)
-                .HasColumnType("datetime")
-                .HasColumnName("ends_at");
-            entity.Property(e => e.Reason)
-                .HasMaxLength(255)
-                .HasColumnName("reason");
-            entity.Property(e => e.StartsAt)
-                .HasColumnType("datetime")
-                .HasColumnName("starts_at");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'scheduled'")
-                .HasColumnType("enum('scheduled','cancelled')")
-                .HasColumnName("status");
-
-            entity.HasOne(d => d.Employee).WithMany(p => p.EmployeeTimeOffs)
-                .HasForeignKey(d => d.EmployeeId)
-                .HasConstraintName("fk_employee_time_off_employee");
-        });
-
-        modelBuilder.Entity<Notification>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("notifications");
-
-            entity.HasIndex(e => e.AppointmentId, "idx_notifications_appointment");
-
-            entity.HasIndex(e => e.BusinessId, "idx_notifications_business");
-
-            entity.HasIndex(e => e.Status, "idx_notifications_status");
-
-            entity.HasIndex(e => e.UserId, "idx_notifications_user");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.AppointmentId).HasColumnName("appointment_id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.Channel)
-                .HasColumnType("enum('email','sms','whatsapp','system')")
-                .HasColumnName("channel");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Message)
-                .HasColumnType("text")
-                .HasColumnName("message");
-            entity.Property(e => e.ReadAt)
-                .HasColumnType("datetime")
-                .HasColumnName("read_at");
-            entity.Property(e => e.SentAt)
-                .HasColumnType("datetime")
-                .HasColumnName("sent_at");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'pending'")
-                .HasColumnType("enum('pending','sent','failed','read')")
-                .HasColumnName("status");
-            entity.Property(e => e.Title)
-                .HasMaxLength(150)
-                .HasColumnName("title");
-            entity.Property(e => e.Type)
-                .HasMaxLength(100)
-                .HasColumnName("type");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
-
-            entity.HasOne(d => d.Appointment).WithMany(p => p.Notifications)
-                .HasForeignKey(d => d.AppointmentId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_notifications_appointment");
-
-            entity.HasOne(d => d.Business).WithMany(p => p.Notifications)
-                .HasForeignKey(d => d.BusinessId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_notifications_business");
-
-            entity.HasOne(d => d.User).WithMany(p => p.Notifications)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_notifications_user");
-        });
-
-        modelBuilder.Entity<Payment>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("payments");
-
-            entity.HasIndex(e => e.AppointmentId, "idx_payments_appointment");
-
-            entity.HasIndex(e => e.Status, "idx_payments_status");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Amount)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CitaId).HasColumnName("cita_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'pending'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.Metodo).HasColumnName("metodo");
+            entity.Property(e => e.Monto)
                 .HasPrecision(10, 2)
-                .HasColumnName("amount");
-            entity.Property(e => e.AppointmentId).HasColumnName("appointment_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Method)
-                .HasColumnType("enum('cash','card','transfer','online')")
-                .HasColumnName("method");
-            entity.Property(e => e.PaidAt)
-                .HasColumnType("datetime")
-                .HasColumnName("paid_at");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'pending'")
-                .HasColumnType("enum('pending','paid','failed','refunded')")
-                .HasColumnName("status");
-            entity.Property(e => e.TransactionReference)
+                .HasColumnName("monto");
+            entity.Property(e => e.PagadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("pagado_en");
+            entity.Property(e => e.ReferenciaTransaccion)
                 .HasMaxLength(150)
-                .HasColumnName("transaction_reference");
+                .HasColumnName("referencia_transaccion");
 
-            entity.HasOne(d => d.Appointment).WithMany(p => p.Payments)
-                .HasForeignKey(d => d.AppointmentId)
-                .HasConstraintName("fk_payments_appointment");
+            entity.HasOne(d => d.Cita).WithMany(p => p.Pagos)
+                .HasForeignKey(d => d.CitaId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("pagos_cita_id_fkey");
         });
 
-        modelBuilder.Entity<Review>(entity =>
+        modelBuilder.Entity<PlanesSuscripcion>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("planes_suscripcion_pkey");
 
-            entity.ToTable("reviews");
+            entity.ToTable("planes_suscripcion");
 
-            entity.HasIndex(e => e.AppointmentId, "appointment_id").IsUnique();
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Activo)
+                .HasDefaultValue(true)
+                .HasColumnName("activo");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.MaxEmpleados)
+                .HasDefaultValue(3)
+                .HasColumnName("max_empleados");
+            entity.Property(e => e.MaxServicios)
+                .HasDefaultValue(20)
+                .HasColumnName("max_servicios");
+            entity.Property(e => e.MaxSucursales)
+                .HasDefaultValue(1)
+                .HasColumnName("max_sucursales");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(100)
+                .HasColumnName("nombre");
+            entity.Property(e => e.PermiteNotificaciones)
+                .HasDefaultValue(true)
+                .HasColumnName("permite_notificaciones");
+            entity.Property(e => e.PermiteReportes)
+                .HasDefaultValue(false)
+                .HasColumnName("permite_reportes");
+            entity.Property(e => e.PrecioMensual)
+                .HasPrecision(10, 2)
+                .HasColumnName("precio_mensual");
+        });
 
-            entity.HasIndex(e => e.BusinessId, "idx_reviews_business");
+        modelBuilder.Entity<RegistroAuditoria>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("registros_auditoria_pkey");
 
-            entity.HasIndex(e => e.CustomerId, "idx_reviews_customer");
+            entity.ToTable("registros_auditoria");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.AppointmentId).HasColumnName("appointment_id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.Comment)
-                .HasColumnType("text")
-                .HasColumnName("comment");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
-            entity.Property(e => e.Rating).HasColumnName("rating");
+            entity.HasIndex(e => new { e.EntidadNombre, e.EntidadId }, "idx_registros_auditoria_entidad");
 
-            entity.HasOne(d => d.Appointment).WithOne(p => p.Review)
-                .HasForeignKey<Review>(d => d.AppointmentId)
-                .HasConstraintName("fk_reviews_appointment");
+            entity.HasIndex(e => e.NegocioId, "idx_registros_auditoria_negocio");
 
-            entity.HasOne(d => d.Business).WithMany(p => p.Reviews)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_reviews_business");
+            entity.HasIndex(e => e.UsuarioId, "idx_registros_auditoria_usuario");
 
-            entity.HasOne(d => d.Customer).WithMany(p => p.Reviews)
-                .HasForeignKey(d => d.CustomerId)
-                .HasConstraintName("fk_reviews_customer");
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Accion)
+                .HasMaxLength(100)
+                .HasColumnName("accion");
+            entity.Property(e => e.AgenteUsuario)
+                .HasMaxLength(500)
+                .HasColumnName("agente_usuario");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.DireccionIp)
+                .HasMaxLength(45)
+                .HasColumnName("direccion_ip");
+            entity.Property(e => e.EntidadId).HasColumnName("entidad_id");
+            entity.Property(e => e.EntidadNombre)
+                .HasMaxLength(100)
+                .HasColumnName("entidad_nombre");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+            entity.Property(e => e.ValoresAnteriores)
+                .HasColumnType("jsonb")
+                .HasColumnName("valores_anteriores");
+            entity.Property(e => e.ValoresNuevos)
+                .HasColumnType("jsonb")
+                .HasColumnName("valores_nuevos");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.RegistrosAuditoria)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("registros_auditoria_negocio_id_fkey");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.RegistrosAuditoria)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("registros_auditoria_usuario_id_fkey");
+        });
+
+        modelBuilder.Entity<Resena>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("resenas_pkey");
+
+            entity.ToTable("resenas");
+
+            entity.HasIndex(e => e.CitaId, "cita_id").IsUnique();
+
+            entity.HasIndex(e => e.ClienteId, "idx_resenas_cliente");
+
+            entity.HasIndex(e => e.NegocioId, "idx_resenas_negocio");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Calificacion).HasColumnName("calificacion");
+            entity.Property(e => e.CitaId).HasColumnName("cita_id");
+            entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
+            entity.Property(e => e.Comentario).HasColumnName("comentario");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+
+            entity.HasOne(d => d.Cita).WithOne(p => p.Resena)
+                .HasForeignKey<Resena>(d => d.CitaId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("resenas_cita_id_fkey");
+
+            entity.HasOne(d => d.Cliente).WithMany(p => p.Resenas)
+                .HasForeignKey(d => d.ClienteId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("resenas_cliente_id_fkey");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.Resenas)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("resenas_negocio_id_fkey");
         });
 
         modelBuilder.Entity<Role>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("roles_pkey");
 
             entity.ToTable("roles");
 
-            entity.HasIndex(e => e.Name, "name").IsUnique();
+            entity.HasIndex(e => e.Nombre, "nombre").IsUnique();
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Descripcion)
                 .HasMaxLength(255)
-                .HasColumnName("description");
-            entity.Property(e => e.Name)
+                .HasColumnName("descripcion");
+            entity.Property(e => e.Nombre)
                 .HasMaxLength(50)
-                .HasColumnName("name");
+                .HasColumnName("nombre");
         });
 
-        modelBuilder.Entity<Service>(entity =>
+        modelBuilder.Entity<Servicio>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("servicios_pkey");
 
-            entity.ToTable("services");
+            entity.ToTable("servicios");
 
-            entity.HasIndex(e => e.IsActive, "idx_services_active");
+            entity.HasIndex(e => e.Activo, "idx_servicios_activo");
 
-            entity.HasIndex(e => e.BusinessId, "idx_services_business");
+            entity.HasIndex(e => e.CategoriaId, "idx_servicios_categoria");
 
-            entity.HasIndex(e => e.CategoryId, "idx_services_category");
+            entity.HasIndex(e => e.NegocioId, "idx_servicios_negocio");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BufferAfterMinutes).HasColumnName("buffer_after_minutes");
-            entity.Property(e => e.BufferBeforeMinutes).HasColumnName("buffer_before_minutes");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.CategoryId).HasColumnName("category_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description)
-                .HasColumnType("text")
-                .HasColumnName("description");
-            entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
-            entity.Property(e => e.IsActive)
-                .IsRequired()
-                .HasDefaultValueSql("'1'")
-                .HasColumnName("is_active");
-            entity.Property(e => e.Name)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.Activo)
+                .HasDefaultValue(true)
+                .HasColumnName("activo");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.BufferAntesMinutos)
+                .HasDefaultValue(0)
+                .HasColumnName("buffer_antes_minutos");
+            entity.Property(e => e.BufferDespuesMinutos)
+                .HasDefaultValue(0)
+                .HasColumnName("buffer_despues_minutos");
+            entity.Property(e => e.CategoriaId).HasColumnName("categoria_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.DuracionMinutos).HasColumnName("duracion_minutos");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Nombre)
                 .HasMaxLength(150)
-                .HasColumnName("name");
-            entity.Property(e => e.Price)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Precio)
                 .HasPrecision(10, 2)
-                .HasColumnName("price");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+                .HasColumnName("precio");
 
-            entity.HasOne(d => d.Business).WithMany(p => p.Services)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_services_business");
-
-            entity.HasOne(d => d.Category).WithMany(p => p.Services)
-                .HasForeignKey(d => d.CategoryId)
+            entity.HasOne(d => d.Categoria).WithMany(p => p.Servicios)
+                .HasForeignKey(d => d.CategoriaId)
                 .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_services_category");
+                .HasConstraintName("servicios_categoria_id_fkey");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.Servicios)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("servicios_negocio_id_fkey");
         });
 
-        modelBuilder.Entity<ServiceCategory>(entity =>
+        modelBuilder.Entity<ServicioCita>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id).HasName("servicios_cita_pkey");
 
-            entity.ToTable("service_categories");
+            entity.ToTable("servicios_cita");
 
-            entity.HasIndex(e => e.BusinessId, "idx_service_categories_business");
+            entity.HasIndex(e => e.CitaId, "idx_servicios_cita_cita");
 
-            entity.HasIndex(e => new { e.BusinessId, e.Name }, "uq_service_categories_business_name").IsUnique();
+            entity.HasIndex(e => e.ServicioId, "idx_servicios_cita_servicio");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BusinessId).HasColumnName("business_id");
-            entity.Property(e => e.Description)
-                .HasColumnType("text")
-                .HasColumnName("description");
-            entity.Property(e => e.DisplayOrder).HasColumnName("display_order");
-            entity.Property(e => e.IsActive)
-                .IsRequired()
-                .HasDefaultValueSql("'1'")
-                .HasColumnName("is_active");
-            entity.Property(e => e.Name)
-                .HasMaxLength(100)
-                .HasColumnName("name");
-
-            entity.HasOne(d => d.Business).WithMany(p => p.ServiceCategories)
-                .HasForeignKey(d => d.BusinessId)
-                .HasConstraintName("fk_service_categories_business");
-        });
-
-        modelBuilder.Entity<SubscriptionPlan>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("subscription_plans");
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.AllowsNotifications)
-                .IsRequired()
-                .HasDefaultValueSql("'1'")
-                .HasColumnName("allows_notifications");
-            entity.Property(e => e.AllowsReports).HasColumnName("allows_reports");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description)
-                .HasColumnType("text")
-                .HasColumnName("description");
-            entity.Property(e => e.IsActive)
-                .IsRequired()
-                .HasDefaultValueSql("'1'")
-                .HasColumnName("is_active");
-            entity.Property(e => e.MaxBranches)
-                .HasDefaultValueSql("'1'")
-                .HasColumnName("max_branches");
-            entity.Property(e => e.MaxEmployees)
-                .HasDefaultValueSql("'3'")
-                .HasColumnName("max_employees");
-            entity.Property(e => e.MaxServices)
-                .HasDefaultValueSql("'20'")
-                .HasColumnName("max_services");
-            entity.Property(e => e.MonthlyPrice)
-                .HasPrecision(10, 2)
-                .HasColumnName("monthly_price");
-            entity.Property(e => e.Name)
-                .HasMaxLength(100)
-                .HasColumnName("name");
-        });
-
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("users");
-
-            entity.HasIndex(e => e.Email, "email").IsUnique();
-
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Email)
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CitaId).HasColumnName("cita_id");
+            entity.Property(e => e.DuracionMinutos).HasColumnName("duracion_minutos");
+            entity.Property(e => e.NombreServicio)
                 .HasMaxLength(150)
-                .HasColumnName("email");
-            entity.Property(e => e.EmailVerifiedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("email_verified_at");
-            entity.Property(e => e.FirstName)
-                .HasMaxLength(100)
-                .HasColumnName("first_name");
-            entity.Property(e => e.LastLoginAt)
-                .HasColumnType("datetime")
-                .HasColumnName("last_login_at");
-            entity.Property(e => e.LastName)
-                .HasMaxLength(100)
-                .HasColumnName("last_name");
-            entity.Property(e => e.PasswordHash)
-                .HasMaxLength(255)
-                .HasColumnName("password_hash");
-            entity.Property(e => e.Phone)
-                .HasMaxLength(30)
-                .HasColumnName("phone");
-            entity.Property(e => e.Status)
-                .HasDefaultValueSql("'active'")
-                .HasColumnType("enum('active','inactive','blocked')")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+                .HasColumnName("nombre_servicio");
+            entity.Property(e => e.Precio)
+                .HasPrecision(10, 2)
+                .HasColumnName("precio");
+            entity.Property(e => e.ServicioId).HasColumnName("servicio_id");
+
+            entity.HasOne(d => d.Cita).WithMany(p => p.ServiciosCita)
+                .HasForeignKey(d => d.CitaId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("servicios_cita_cita_id_fkey");
+
+            entity.HasOne(d => d.Servicio).WithMany(p => p.ServiciosCita)
+                .HasForeignKey(d => d.ServicioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("servicios_cita_servicio_id_fkey");
         });
 
-        modelBuilder.Entity<UserRole>(entity =>
+        modelBuilder.Entity<ServiciosEmpleado>(entity =>
         {
-            entity.HasKey(e => new { e.UserId, e.RoleId })
-                .HasName("PRIMARY")
-                .HasAnnotation("MySql:IndexPrefixLength", new[] { 0, 0 });
+            entity.HasKey(e => new { e.EmpleadoId, e.ServicioId }).HasName("servicios_empleado_pkey");
 
-            entity.ToTable("user_roles");
+            entity.ToTable("servicios_empleado");
 
-            entity.HasIndex(e => e.RoleId, "fk_user_roles_role");
+            entity.HasIndex(e => e.ServicioId, "idx_servicios_empleado_servicio");
 
-            entity.Property(e => e.UserId).HasColumnName("user_id");
-            entity.Property(e => e.RoleId).HasColumnName("role_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
+            entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
+            entity.Property(e => e.ServicioId).HasColumnName("servicio_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
 
-            entity.HasOne(d => d.Role).WithMany(p => p.UserRoles)
-                .HasForeignKey(d => d.RoleId)
-                .HasConstraintName("fk_user_roles_role");
+            entity.HasOne(d => d.Empleado).WithMany(p => p.ServiciosEmpleados)
+                .HasForeignKey(d => d.EmpleadoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("servicios_empleado_empleado_id_fkey");
 
-            entity.HasOne(d => d.User).WithMany(p => p.UserRoles)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("fk_user_roles_user");
+            entity.HasOne(d => d.Servicio).WithMany(p => p.ServiciosEmpleados)
+                .HasForeignKey(d => d.ServicioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("servicios_empleado_servicio_id_fkey");
+        });
+
+        modelBuilder.Entity<Sucursal>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("sucursales_pkey");
+
+            entity.ToTable("sucursales");
+
+            entity.HasIndex(e => e.NegocioId, "idx_sucursales_negocio");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.Ciudad)
+                .HasMaxLength(100)
+                .HasColumnName("ciudad");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Direccion)
+                .HasMaxLength(255)
+                .HasColumnName("direccion");
+            entity.Property(e => e.EsPrincipal)
+                .HasDefaultValue(false)
+                .HasColumnName("es_principal");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'active'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.Latitud)
+                .HasPrecision(10, 7)
+                .HasColumnName("latitud");
+            entity.Property(e => e.Longitud)
+                .HasPrecision(10, 7)
+                .HasColumnName("longitud");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(150)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Pais)
+                .HasMaxLength(100)
+                .HasDefaultValueSql("'Republica Dominicana'::character varying")
+                .HasColumnName("pais");
+            entity.Property(e => e.Provincia)
+                .HasMaxLength(100)
+                .HasColumnName("provincia");
+            entity.Property(e => e.Telefono)
+                .HasMaxLength(30)
+                .HasColumnName("telefono");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.Sucursales)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("sucursales_negocio_id_fkey");
+        });
+
+        modelBuilder.Entity<SuscripcionesNegocio>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("suscripciones_negocio_pkey");
+
+            entity.ToTable("suscripciones_negocio");
+
+            entity.HasIndex(e => e.Estado, "idx_suscripciones_negocio_estado");
+
+            entity.HasIndex(e => e.NegocioId, "idx_suscripciones_negocio_negocio");
+
+            entity.HasIndex(e => e.PlanId, "idx_suscripciones_negocio_plan");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'trial'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.FinalizaEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("finaliza_en");
+            entity.Property(e => e.IniciadaEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("iniciada_en");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.PlanId).HasColumnName("plan_id");
+            entity.Property(e => e.ProximoCobroEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("proximo_cobro_en");
+
+            entity.HasOne(d => d.Negocio).WithMany(p => p.SuscripcionesNegocios)
+                .HasForeignKey(d => d.NegocioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("suscripciones_negocio_negocio_id_fkey");
+
+            entity.HasOne(d => d.Plan).WithMany(p => p.SuscripcionesNegocios)
+                .HasForeignKey(d => d.PlanId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("suscripciones_negocio_plan_id_fkey");
+        });
+
+        modelBuilder.Entity<Usuario>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("usuarios_pkey");
+
+            entity.ToTable("usuarios");
+
+            entity.HasIndex(e => e.Correo, "correo").IsUnique();
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.ActualizadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("actualizado_en");
+            entity.Property(e => e.Apellido)
+                .HasMaxLength(100)
+                .HasColumnName("apellido");
+            entity.Property(e => e.ContrasenaHash)
+                .HasMaxLength(255)
+                .HasColumnName("contrasena_hash");
+            entity.Property(e => e.Correo)
+                .HasMaxLength(150)
+                .HasColumnName("correo");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+            entity.Property(e => e.Estado)
+                .HasDefaultValueSql("'active'::text")
+                .HasColumnName("estado");
+            entity.Property(e => e.Nombre)
+                .HasMaxLength(100)
+                .HasColumnName("nombre");
+            entity.Property(e => e.Telefono)
+                .HasMaxLength(30)
+                .HasColumnName("telefono");
+            entity.Property(e => e.UltimoLoginEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("ultimo_login_en");
+            entity.Property(e => e.VerificadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("verificado_en");
+        });
+
+        modelBuilder.Entity<UsuariosRole>(entity =>
+        {
+            entity.HasKey(e => new { e.UsuarioId, e.RolId }).HasName("usuarios_roles_pkey");
+
+            entity.ToTable("usuarios_roles");
+
+            entity.HasIndex(e => e.RolId, "idx_usuarios_roles_rol");
+
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+            entity.Property(e => e.RolId).HasColumnName("rol_id");
+            entity.Property(e => e.CreadoEn)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("creado_en");
+
+            entity.HasOne(d => d.Rol).WithMany(p => p.UsuariosRoles)
+                .HasForeignKey(d => d.RolId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("usuarios_roles_rol_id_fkey");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.UsuariosRoles)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("usuarios_roles_usuario_id_fkey");
         });
 
         OnModelCreatingPartial(modelBuilder);

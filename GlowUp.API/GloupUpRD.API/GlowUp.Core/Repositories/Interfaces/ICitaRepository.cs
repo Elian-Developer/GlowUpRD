@@ -4,22 +4,22 @@ namespace GloupUpRD.API.Repositories.Interfaces;
 
 public interface ICitaRepository
 {
-    Task<bool> UsuarioTieneAccesoAsync(ulong usuarioId, ulong negocioId, CancellationToken cancellationToken = default);
-    Task<List<Appointment>> BuscarAsync(ulong negocioId, DateOnly desde, DateOnly hasta, ulong? sucursalId, ulong? empleadoId, CancellationToken cancellationToken = default);
-    Task<Appointment?> ObtenerDetalleAsync(ulong id, CancellationToken cancellationToken = default);
-    Task<Appointment?> ObtenerParaEditarAsync(ulong id, CancellationToken cancellationToken = default);
-    Task<List<Service>> ObtenerServiciosAsync(ulong negocioId, IReadOnlyCollection<ulong> ids, CancellationToken cancellationToken = default);
-    Task<Employee?> ObtenerEmpleadoAsync(ulong negocioId, ulong empleadoId, CancellationToken cancellationToken = default);
-    Task<Branch?> ObtenerSucursalAsync(ulong negocioId, ulong sucursalId, CancellationToken cancellationToken = default);
-    Task<Customer?> ObtenerClienteAsync(ulong clienteId, CancellationToken cancellationToken = default);
-    Task<BusinessCustomer?> ObtenerClienteNegocioAsync(ulong negocioId, ulong clienteId, CancellationToken cancellationToken = default);
-    Task<bool> ExisteConflictoAsync(ulong empleadoId, DateTime inicio, DateTime fin, ulong? excluirCitaId, CancellationToken cancellationToken = default);
-    Task<List<Branch>> ObtenerSucursalesAsync(ulong negocioId, CancellationToken cancellationToken = default);
-    Task<List<BusinessCustomer>> ObtenerClientesAsync(ulong negocioId, CancellationToken cancellationToken = default);
-    Task<List<Employee>> ObtenerEmpleadosAsync(ulong negocioId, CancellationToken cancellationToken = default);
-    Task<List<Service>> ObtenerServiciosActivosAsync(ulong negocioId, CancellationToken cancellationToken = default);
-    Task<List<Business>> ObtenerNegociosAsync(ulong usuarioId, CancellationToken cancellationToken = default);
-    Task AgregarAsync(Appointment cita, CancellationToken cancellationToken = default);
-    void ReemplazarServicios(Appointment cita, IEnumerable<AppointmentService> servicios);
+    Task<bool> UsuarioTieneAccesoAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default);
+    Task<List<Cita>> BuscarAsync(long negocioId, DateOnly desde, DateOnly hasta, long? sucursalId, long? empleadoId, CancellationToken cancellationToken = default);
+    Task<Cita?> ObtenerDetalleAsync(long id, CancellationToken cancellationToken = default);
+    Task<Cita?> ObtenerParaEditarAsync(long id, CancellationToken cancellationToken = default);
+    Task<List<Servicio>> ObtenerServiciosAsync(long negocioId, IReadOnlyCollection<long> ids, CancellationToken cancellationToken = default);
+    Task<Empleado?> ObtenerEmpleadoAsync(long negocioId, long empleadoId, CancellationToken cancellationToken = default);
+    Task<Sucursal?> ObtenerSucursalAsync(long negocioId, long sucursalId, CancellationToken cancellationToken = default);
+    Task<Cliente?> ObtenerClienteAsync(long clienteId, CancellationToken cancellationToken = default);
+    Task<ClientesNegocio?> ObtenerClienteNegocioAsync(long negocioId, long clienteId, CancellationToken cancellationToken = default);
+    Task<bool> ExisteConflictoAsync(long empleadoId, DateTime inicio, DateTime fin, long? excluirCitaId, CancellationToken cancellationToken = default);
+    Task<List<Sucursal>> ObtenerSucursalesAsync(long negocioId, CancellationToken cancellationToken = default);
+    Task<List<ClientesNegocio>> ObtenerClientesAsync(long negocioId, CancellationToken cancellationToken = default);
+    Task<List<Empleado>> ObtenerEmpleadosAsync(long negocioId, CancellationToken cancellationToken = default);
+    Task<List<Servicio>> ObtenerServiciosActivosAsync(long negocioId, CancellationToken cancellationToken = default);
+    Task<List<Negocio>> ObtenerNegociosAsync(long usuarioId, CancellationToken cancellationToken = default);
+    Task AgregarAsync(Cita cita, CancellationToken cancellationToken = default);
+    void ReemplazarServicios(Cita cita, IEnumerable<ServicioCita> servicios);
     Task GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

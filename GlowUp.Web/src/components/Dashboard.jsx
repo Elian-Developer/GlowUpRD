@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import glowUpLogo from '../assets/glowup-rd-logo.png'
 import useLocalStorage from '../hooks/useLocalStorage'
-import AppointmentModal from './AppointmentModal'
 import {
-  createInitialAppointments,
-  initialCustomers,
-  professionals,
-  services,
-  toDateKey,
-} from '../data/dashboardData'
+  actualizarCita,
+  buscarCitas,
+  crearCita,
+  eliminarCita,
+  obtenerCatalogos,
+  obtenerNegocios,
+} from '../services/citasApi'
+import AppointmentModal from './AppointmentModal'
 import './Dashboard.css'
 
 const navigation = [
@@ -18,6 +19,7 @@ const navigation = [
 ]
 
 const hours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
+const tones = ['mint', 'blue', 'sand', 'violet']
 const sectionTitles = Object.fromEntries(navigation)
 
 function Icon({ name }) {
@@ -40,6 +42,13 @@ function Icon({ name }) {
   return <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
 
+function toDateKey(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function formatLongDate(date) {
   return new Intl.DateTimeFormat('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date)
 }
@@ -50,19 +59,92 @@ function addDays(date, amount) {
   return next
 }
 
-function statusLabel(status) {
-  return { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' }[status]
+function getInitials(name) {
+  return name.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 }
 
-function Schedule({ selectedDate, appointments, onChangeDate, onOpenAppointment, expanded = false }) {
+function statusLabel(status) {
+  return {
+    pending: 'Pendiente',
+    confirmed: 'Confirmada',
+    completed: 'Completada',
+    cancelled: 'Cancelada',
+    no_show: 'No asistió',
+  }[status] ?? status
+}
+
+function toTime(value) {
+  return value?.slice(11, 16) ?? '09:00'
+}
+
+function mapCatalog(catalog) {
+  return {
+    branches: (catalog?.sucursales ?? []).map((item) => ({ id: String(item.id), name: item.nombre, detail: item.detalle })),
+    customers: (catalog?.clientes ?? []).map((item) => ({ id: String(item.id), name: item.nombre, phone: item.detalle, email: item.detalle, initials: getInitials(item.nombre ?? '') })),
+    professionals: (catalog?.empleados ?? []).map((item, index) => ({
+      id: String(item.id),
+      name: item.nombre,
+      shortName: item.nombre?.split(' ')[0] ?? item.nombre,
+      initials: getInitials(item.nombre ?? ''),
+      specialty: item.detalle ?? 'Profesional',
+      tone: tones[index % tones.length],
+    })),
+    services: (catalog?.servicios ?? []).map((item) => ({
+      id: String(item.id),
+      name: item.nombre,
+      duration: item.duracionMinutos,
+      price: item.precio,
+      category: 'Servicio',
+    })),
+  }
+}
+
+function mapAppointment(item) {
+  const service = item.servicios?.[0]
+  return {
+    id: String(item.id),
+    businessId: String(item.negocioId),
+    branchId: String(item.sucursalId),
+    branchName: item.sucursal,
+    customerId: String(item.clienteId),
+    customerName: item.cliente,
+    professionalId: String(item.empleadoId),
+    professionalName: item.empleado,
+    serviceId: service ? String(service.servicioId) : '',
+    serviceName: service?.nombre,
+    serviceIds: (item.servicios ?? []).map((detail) => String(detail.servicioId)),
+    date: item.fecha,
+    time: toTime(item.inicio),
+    startsAt: item.inicio,
+    duration: (item.servicios ?? []).reduce((sum, detail) => sum + detail.duracionMinutos, 0),
+    status: item.estado,
+    notes: item.notas ?? '',
+    cancellationReason: item.motivoCancelacion,
+    total: item.total,
+  }
+}
+
+function buildAppointmentPayload(form, businessId) {
+  return {
+    negocioId: Number(businessId),
+    sucursalId: Number(form.branchId),
+    clienteId: Number(form.customerId),
+    empleadoId: Number(form.professionalId),
+    inicio: `${form.date}T${form.time.length === 5 ? `${form.time}:00` : form.time}`,
+    servicioIds: [Number(form.serviceId)],
+    estado: form.status,
+    motivoCancelacion: form.status === 'cancelled' ? 'Cancelada desde el panel' : null,
+    notas: form.notes?.trim() || null,
+  }
+}
+
+function Schedule({ selectedDate, appointments, professionals, customers, services, onChangeDate, onOpenAppointment, expanded = false }) {
   const [uiSettings] = useLocalStorage('glowup_ui_settings', { reminders: true, confirmations: true, compactCalendar: false })
   const dayAppointments = appointments.filter((item) => item.date === toDateKey(selectedDate) && item.status !== 'cancelled')
+  const gridStyle = { gridTemplateColumns: `58px repeat(${Math.max(professionals.length, 1)}, minmax(150px, 1fr))` }
 
   function openSlot(professionalId, hour) {
-    onOpenAppointment({
-      date: toDateKey(selectedDate), time: hour, professionalId,
-      customerId: '', serviceId: '', duration: 60, status: 'confirmed', notes: '',
-    })
+    onOpenAppointment({ date: toDateKey(selectedDate), time: hour, professionalId })
   }
 
   return (
@@ -71,51 +153,57 @@ function Schedule({ selectedDate, appointments, onChangeDate, onOpenAppointment,
         <div><span className="section-kicker">AGENDA</span><h2>{expanded ? 'Calendario de citas' : 'Calendario de hoy'}</h2><p>{formatLongDate(selectedDate)}</p></div>
         <div className="calendar-controls"><button onClick={() => onChangeDate(addDays(selectedDate, -1))} aria-label="Día anterior">‹</button><button className="today-button" onClick={() => onChangeDate(new Date())}>Hoy</button><button onClick={() => onChangeDate(addDays(selectedDate, 1))} aria-label="Día siguiente">›</button></div>
       </div>
-      <div className="calendar-scroll">
-        <div className="calendar-board">
-          <div className="calendar-corner">Hora</div>
-          {professionals.map((professional) => <div className="professional-heading" key={professional.id}><span className={`professional-avatar ${professional.tone}`}>{professional.initials}</span>{professional.shortName}</div>)}
-          {hours.map((hour, index) => <div className="time-label" key={hour} style={{ gridRow: index + 2 }}>{hour}</div>)}
-          {hours.flatMap((hour, row) => professionals.map((professional, column) => <button aria-label={`Crear cita con ${professional.name} a las ${hour}`} className="calendar-cell" key={`${professional.id}-${hour}`} style={{ gridColumn: column + 2, gridRow: row + 2 }} onClick={() => openSlot(professional.id, hour)} />))}
-          {dayAppointments.map((appointment) => {
-            const professionalIndex = professionals.findIndex((item) => item.id === appointment.professionalId)
-            const [hour, minute] = appointment.time.split(':').map(Number)
-            const row = Math.max(2, hour - 8 + 2)
-            const span = Math.max(1, Math.ceil(appointment.duration / 60))
-            const customer = initialCustomers.find((item) => item.id === appointment.customerId)
-            const service = services.find((item) => item.id === appointment.serviceId)
-            if (professionalIndex < 0 || row > 11) return null
-            return <button className={`appointment-event ${appointment.status}`} key={appointment.id} style={{ gridColumn: professionalIndex + 2, gridRow: `${row} / span ${span}`, '--minute-offset': minute === 30 ? '21px' : '0px' }} onClick={() => onOpenAppointment(appointment)}><strong>{service?.name ?? 'Servicio'}</strong><span>{appointment.time}</span><small>{customer?.name ?? 'Cliente'}</small></button>
-          })}
+      {professionals.length === 0 ? <div className="empty-state">No hay profesionales activos para este negocio.</div> : (
+        <div className="calendar-scroll">
+          <div className="calendar-board" style={gridStyle}>
+            <div className="calendar-corner">Hora</div>
+            {professionals.map((professional) => <div className="professional-heading" key={professional.id}><span className={`professional-avatar ${professional.tone}`}>{professional.initials}</span>{professional.shortName}</div>)}
+            {hours.map((hour, index) => <div className="time-label" key={hour} style={{ gridRow: index + 2 }}>{hour}</div>)}
+            {hours.flatMap((hour, row) => professionals.map((professional, column) => <button aria-label={`Crear cita con ${professional.name} a las ${hour}`} className="calendar-cell" key={`${professional.id}-${hour}`} style={{ gridColumn: column + 2, gridRow: row + 2 }} onClick={() => openSlot(professional.id, hour)} />))}
+            {dayAppointments.map((appointment) => {
+              const professionalIndex = professionals.findIndex((item) => item.id === appointment.professionalId)
+              const [hour, minute] = appointment.time.split(':').map(Number)
+              const row = Math.max(2, hour - 8 + 2)
+              const span = Math.max(1, Math.ceil(appointment.duration / 60))
+              const customer = customers.find((item) => item.id === appointment.customerId)
+              const service = services.find((item) => item.id === appointment.serviceId)
+              if (professionalIndex < 0 || row > 11) return null
+              return <button className={`appointment-event ${appointment.status}`} key={appointment.id} style={{ gridColumn: professionalIndex + 2, gridRow: `${row} / span ${span}`, '--minute-offset': minute === 30 ? '21px' : '0px' }} onClick={() => onOpenAppointment(appointment)}><strong>{service?.name ?? appointment.serviceName ?? 'Servicio'}</strong><span>{appointment.time}</span><small>{customer?.name ?? appointment.customerName ?? 'Cliente'}</small></button>
+            })}
+          </div>
         </div>
-      </div>
+      )}
       <footer className="calendar-legend"><span><i className="confirmed" />Confirmada</span><span><i className="pending" />Pendiente</span><small>Selecciona un espacio libre para crear una cita</small></footer>
     </article>
   )
 }
 
-function AppointmentList({ appointments, customers, onEdit, onNew }) {
+function AppointmentList({ appointments, customers, professionals, services, onEdit, onNew }) {
   const [status, setStatus] = useState('all')
   const [query, setQuery] = useState('')
   const filtered = appointments
     .filter((item) => status === 'all' || item.status === status)
-    .filter((item) => (customers.find((customer) => customer.id === item.customerId)?.name ?? '').toLowerCase().includes(query.toLowerCase()))
+    .filter((item) => (customers.find((customer) => customer.id === item.customerId)?.name ?? item.customerName ?? '').toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
 
-  return <section className="data-card"><div className="data-toolbar"><div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar cliente..." /></div><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">Todos los estados</option><option value="confirmed">Confirmadas</option><option value="pending">Pendientes</option><option value="completed">Completadas</option><option value="cancelled">Canceladas</option></select><button className="new-appointment" onClick={onNew}><Icon name="plus" />Nueva cita</button></div><div className="responsive-table"><table><thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Servicio</th><th>Profesional</th><th>Estado</th><th /></tr></thead><tbody>{filtered.map((appointment) => <tr key={appointment.id}><td><strong>{appointment.date}</strong><small>{appointment.time}</small></td><td>{customers.find((item) => item.id === appointment.customerId)?.name}</td><td>{services.find((item) => item.id === appointment.serviceId)?.name}</td><td>{professionals.find((item) => item.id === appointment.professionalId)?.name}</td><td><span className={`table-status ${appointment.status}`}>{statusLabel(appointment.status)}</span></td><td><button className="row-action" onClick={() => onEdit(appointment)}>Editar</button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="empty-state">No hay citas que coincidan con los filtros.</div>}</div></section>
+  return <section className="data-card"><div className="data-toolbar"><div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar cliente..." /></div><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">Todos los estados</option><option value="confirmed">Confirmadas</option><option value="pending">Pendientes</option><option value="completed">Completadas</option><option value="cancelled">Canceladas</option><option value="no_show">No asistió</option></select><button className="new-appointment" onClick={onNew}><Icon name="plus" />Nueva cita</button></div><div className="responsive-table"><table><thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Servicio</th><th>Profesional</th><th>Estado</th><th /></tr></thead><tbody>{filtered.map((appointment) => <tr key={appointment.id}><td><strong>{appointment.date}</strong><small>{appointment.time}</small></td><td>{customers.find((item) => item.id === appointment.customerId)?.name ?? appointment.customerName}</td><td>{services.find((item) => item.id === appointment.serviceId)?.name ?? appointment.serviceName}</td><td>{professionals.find((item) => item.id === appointment.professionalId)?.name ?? appointment.professionalName}</td><td><span className={`table-status ${appointment.status}`}>{statusLabel(appointment.status)}</span></td><td><button className="row-action" onClick={() => onEdit(appointment)}>Editar</button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="empty-state">No hay citas que coincidan con los filtros.</div>}</div></section>
 }
 
-function DirectoryView({ type, customers }) {
+function DirectoryView({ type, customers, services, professionals }) {
   const [query, setQuery] = useState('')
-  const content = type === 'customers' ? customers.map((item) => ({ ...item, subtitle: item.email, detail: `${item.visits} visitas` })) : type === 'services' ? services.map((item) => ({ ...item, subtitle: item.category, detail: `RD$ ${item.price.toLocaleString()} · ${item.duration} min` })) : professionals.map((item) => ({ ...item, subtitle: item.specialty, detail: 'Disponible hoy' }))
+  const content = type === 'customers'
+    ? customers.map((item) => ({ ...item, subtitle: item.phone, detail: 'Cliente activo' }))
+    : type === 'services'
+      ? services.map((item) => ({ ...item, subtitle: item.category, detail: `RD$ ${item.price.toLocaleString()} · ${item.duration} min` }))
+      : professionals.map((item) => ({ ...item, subtitle: item.specialty, detail: 'Disponible' }))
   const filtered = content.filter((item) => (item.name ?? '').toLowerCase().includes(query.toLowerCase()))
-  return <section className="directory-view"><div className="data-toolbar"><div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar..." /></div><span className="result-count">{filtered.length} resultados</span></div><div className="directory-grid">{filtered.map((item) => <article key={item.id} className="directory-card"><span className="directory-avatar">{item.initials ?? item.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span><div><strong>{item.name}</strong><p>{item.subtitle}</p><small>{item.detail}</small></div></article>)}</div></section>
+  return <section className="directory-view"><div className="data-toolbar"><div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar..." /></div><span className="result-count">{filtered.length} resultados</span></div><div className="directory-grid">{filtered.map((item) => <article key={item.id} className="directory-card"><span className="directory-avatar">{item.initials ?? getInitials(item.name ?? '')}</span><div><strong>{item.name}</strong><p>{item.subtitle}</p><small>{item.detail}</small></div></article>)}</div></section>
 }
 
-function ReportsView({ appointments }) {
+function ReportsView({ appointments, services }) {
   const active = appointments.filter((item) => item.status !== 'cancelled')
   const values = [58, 72, 64, 88, 79, 93, 76]
-  return <section className="reports-view"><div className="report-summary"><article><small>Ingresos estimados</small><strong>RD$ {active.reduce((sum, item) => sum + (services.find((service) => service.id === item.serviceId)?.price ?? 0), 0).toLocaleString()}</strong><span>Según las citas registradas</span></article><article><small>Tasa de confirmación</small><strong>{active.length ? Math.round(active.filter((item) => item.status === 'confirmed').length / active.length * 100) : 0}%</strong><span>Citas actualmente confirmadas</span></article><article><small>Servicios agendados</small><strong>{active.length}</strong><span>En el período visible</span></article></div><article className="chart-card"><div><span className="section-kicker">RENDIMIENTO</span><h2>Ocupación semanal</h2></div><div className="bar-chart">{values.map((value, index) => <div key={index}><span style={{ height: `${value}%` }} /><small>{['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][index]}</small></div>)}</div></article></section>
+  return <section className="reports-view"><div className="report-summary"><article><small>Ingresos estimados</small><strong>RD$ {active.reduce((sum, item) => sum + (item.total ?? services.find((service) => service.id === item.serviceId)?.price ?? 0), 0).toLocaleString()}</strong><span>Según las citas registradas</span></article><article><small>Tasa de confirmación</small><strong>{active.length ? Math.round(active.filter((item) => item.status === 'confirmed').length / active.length * 100) : 0}%</strong><span>Citas actualmente confirmadas</span></article><article><small>Servicios agendados</small><strong>{active.length}</strong><span>En el período visible</span></article></div><article className="chart-card"><div><span className="section-kicker">RENDIMIENTO</span><h2>Ocupación semanal</h2></div><div className="bar-chart">{values.map((value, index) => <div key={index}><span style={{ height: `${value}%` }} /><small>{['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][index]}</small></div>)}</div></article></section>
 }
 
 function SettingsView({ settings, setSettings }) {
@@ -144,32 +232,138 @@ function Dashboard({ session, onLogout }) {
   const [activeSection, setActiveSection] = useState('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [appointments, setAppointments] = useLocalStorage('glowup_appointments', createInitialAppointments())
-  const [customers] = useLocalStorage('glowup_customers', initialCustomers)
+  const [businesses, setBusinesses] = useState([])
+  const [selectedBusinessId, setSelectedBusinessId] = useState('')
+  const [branches, setBranches] = useState([])
+  const [customers, setCustomers] = useState([])
+  const [professionals, setProfessionals] = useState([])
+  const [services, setServices] = useState([])
+  const [appointments, setAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [modalError, setModalError] = useState(null)
+  const [savingAppointment, setSavingAppointment] = useState(false)
   const [settings, setSettings] = useLocalStorage('glowup_ui_settings', { reminders: true, confirmations: true, compactCalendar: false })
   const [modalAppointment, setModalAppointment] = useState(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false)
   const user = session.usuario
   const initials = `${user.nombre?.[0] ?? ''}${user.apellido?.[0] ?? ''}`.toUpperCase()
-  const dayAppointments = useMemo(() => appointments.filter((item) => item.date === toDateKey(selectedDate) && item.status !== 'cancelled'), [appointments, selectedDate])
-  const revenue = dayAppointments.reduce((sum, item) => sum + (services.find((service) => service.id === item.serviceId)?.price ?? 0), 0)
+  const dateKey = toDateKey(selectedDate)
+  const dayAppointments = useMemo(() => appointments.filter((item) => item.date === dateKey && item.status !== 'cancelled'), [appointments, dateKey])
+  const revenue = dayAppointments.reduce((sum, item) => sum + (item.total ?? services.find((service) => service.id === item.serviceId)?.price ?? 0), 0)
 
-  function selectSection(section) { setActiveSection(section); setMenuOpen(false) }
-  function openNewAppointment(preset = {}) { setModalAppointment({ date: toDateKey(selectedDate), time: '09:00', duration: 60, status: 'confirmed', notes: '', customerId: '', serviceId: '', professionalId: professionals[0].id, ...preset }) }
-  function saveAppointment(form) { setAppointments((current) => form.id ? current.map((item) => item.id === form.id ? form : item) : [...current, { ...form, id: crypto.randomUUID() }]); setSelectedDate(new Date(`${form.date}T12:00:00`)); setModalAppointment(null) }
-  function deleteAppointment(id) { setAppointments((current) => current.filter((item) => item.id !== id)); setModalAppointment(null) }
+  useEffect(() => {
+    let active = true
+    obtenerNegocios()
+      .then((items) => {
+        if (!active) return
+        setBusinesses(items ?? [])
+        setSelectedBusinessId(items?.[0]?.id ? String(items[0].id) : '')
+      })
+      .catch((err) => active && setError(err.message))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [])
 
-  function renderMainContent() {
-    if (activeSection === 'calendar') return <Schedule expanded selectedDate={selectedDate} appointments={appointments} onChangeDate={setSelectedDate} onOpenAppointment={setModalAppointment} />
-    if (activeSection === 'appointments') return <AppointmentList appointments={appointments} customers={customers} onEdit={setModalAppointment} onNew={() => openNewAppointment()} />
-    if (['customers', 'services', 'team'].includes(activeSection)) return <DirectoryView type={activeSection} customers={customers} />
-    if (activeSection === 'reports') return <ReportsView appointments={appointments} />
-    if (activeSection === 'settings') return <SettingsView settings={settings} setSettings={setSettings} />
-    return <><section className="stats-grid"><article className="stat-card"><span className="stat-icon green"><Icon name="calendar" /></span><div><small>Citas del día</small><strong>{dayAppointments.length}</strong><p><b>{dayAppointments.filter((item) => item.status === 'confirmed').length}</b> confirmadas</p></div></article><article className="stat-card"><span className="stat-icon dark"><Icon name="customers" /></span><div><small>Clientes agendados</small><strong>{new Set(dayAppointments.map((item) => item.customerId)).size}</strong><p>Agenda seleccionada</p></div></article><article className="stat-card"><span className="stat-icon soft"><Icon name="reports" /></span><div><small>Ingresos estimados</small><strong>RD$ {revenue.toLocaleString()}</strong><p>Servicios no cancelados</p></div></article><article className="stat-card"><span className="stat-icon amber"><Icon name="team" /></span><div><small>Personal activo</small><strong>{professionals.length}</strong><p>Todos disponibles</p></div></article></section><section className="workspace-grid"><Schedule selectedDate={selectedDate} appointments={appointments} onChangeDate={setSelectedDate} onOpenAppointment={setModalAppointment} /><aside className="today-card"><div className="card-heading"><div><span className="section-kicker">PRÓXIMAS</span><h2>Citas por atender</h2></div></div>{dayAppointments.sort((a, b) => a.time.localeCompare(b.time)).slice(0, 5).map((appointment) => <button className="next-appointment" key={appointment.id} onClick={() => setModalAppointment(appointment)}><span className="appointment-time">{appointment.time}</span><div><strong>{customers.find((item) => item.id === appointment.customerId)?.name}</strong><p>{services.find((item) => item.id === appointment.serviceId)?.name} · {professionals.find((item) => item.id === appointment.professionalId)?.shortName}</p></div><Icon name="chevron" /></button>)}{dayAppointments.length === 0 && <div className="empty-state compact">No hay citas para este día.</div>}<button className="view-all-button" onClick={() => selectSection('appointments')}>Ver todas las citas <Icon name="chevron" /></button><div className="occupancy-card"><div><span>Ocupación del día</span><strong>{Math.min(100, Math.round(dayAppointments.length / 16 * 100))}%</strong></div><div className="progress-track"><span style={{ width: `${Math.min(100, dayAppointments.length / 16 * 100)}%` }} /></div><p>{dayAppointments.length} citas registradas</p></div></aside></section></>
+  useEffect(() => {
+    if (!selectedBusinessId) {
+      return
+    }
+
+    let active = true
+
+    Promise.all([
+      obtenerCatalogos(selectedBusinessId),
+      buscarCitas({ negocioId: selectedBusinessId, desde: dateKey, hasta: dateKey }),
+    ])
+      .then(([catalog, citas]) => {
+        if (!active) return
+        const mappedCatalog = mapCatalog(catalog)
+        setBranches(mappedCatalog.branches)
+        setCustomers(mappedCatalog.customers)
+        setProfessionals(mappedCatalog.professionals)
+        setServices(mappedCatalog.services)
+        setAppointments((citas ?? []).map(mapAppointment))
+      })
+      .catch((err) => active && setError(err.message))
+      .finally(() => active && setAppointmentsLoading(false))
+
+    return () => { active = false }
+  }, [selectedBusinessId, dateKey])
+
+  async function refreshAppointments() {
+    if (!selectedBusinessId) return
+    const citas = await buscarCitas({ negocioId: selectedBusinessId, desde: dateKey, hasta: dateKey })
+    setAppointments((citas ?? []).map(mapAppointment))
   }
 
-  return <main className="dashboard-page">{menuOpen && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} />}<aside className={`dashboard-sidebar ${menuOpen ? 'open' : ''}`}><div className="sidebar-logo-wrap"><img src={glowUpLogo} alt="GlowUp RD" className="sidebar-logo" /></div><nav className="sidebar-nav" aria-label="Navegación principal"><span className="nav-label">GESTIÓN</span>{navigation.slice(0, 6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}<span className="nav-label nav-label-secondary">ANÁLISIS</span>{navigation.slice(6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}</nav><div className="sidebar-user"><span className="user-avatar">{initials || 'GU'}</span><span className="user-info"><strong>{user.nombre} {user.apellido}</strong><small>{user.correo}</small></span><button onClick={() => setLogoutConfirmationOpen(true)} title="Cerrar sesión" aria-label="Cerrar sesión"><Icon name="logout" /></button></div></aside><section className="dashboard-content"><header className="dashboard-header"><div className="header-title-wrap"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button><div><span className="page-kicker">{activeSection === 'dashboard' ? 'PANEL PRINCIPAL' : 'GESTIÓN'}</span><h1>{activeSection === 'dashboard' ? `Buenos días, ${user.nombre}` : sectionTitles[activeSection]}</h1><p className="current-date">{formatLongDate(selectedDate)}</p></div></div><div className="header-actions"><div className="notification-wrap"><button className="notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Icon name="bell" /><span /></button>{notificationsOpen && <div className="notification-popover"><strong>Notificaciones</strong><p>Tienes {dayAppointments.filter((item) => item.status === 'pending').length} citas pendientes de confirmar.</p><button onClick={() => { selectSection('appointments'); setNotificationsOpen(false) }}>Revisar citas</button></div>}</div><button className="new-appointment" onClick={() => openNewAppointment()}><Icon name="plus" />Nueva cita</button></div></header>{renderMainContent()}</section>{modalAppointment && <AppointmentModal appointment={modalAppointment} customers={customers} professionals={professionals} services={services} onClose={() => setModalAppointment(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}{logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={onLogout} />}</main>
+  function selectSection(section) { setActiveSection(section); setMenuOpen(false) }
+
+  function openNewAppointment(preset = {}) {
+    setModalError(null)
+    setModalAppointment({
+      branchId: branches[0]?.id ?? '',
+      date: dateKey,
+      time: '09:00',
+      duration: services[0]?.duration ?? 60,
+      status: 'confirmed',
+      notes: '',
+      customerId: customers[0]?.id ?? '',
+      serviceId: services[0]?.id ?? '',
+      professionalId: professionals[0]?.id ?? '',
+      ...preset,
+    })
+  }
+
+  async function saveAppointment(form) {
+    setSavingAppointment(true)
+    setModalError(null)
+    try {
+      const payload = buildAppointmentPayload(form, selectedBusinessId)
+      if (form.id) {
+        await actualizarCita(form.id, payload)
+      } else {
+        await crearCita(payload)
+      }
+      setSelectedDate(new Date(`${form.date}T12:00:00`))
+      setModalAppointment(null)
+      await refreshAppointments()
+    } catch (err) {
+      setModalError(err.message)
+    } finally {
+      setSavingAppointment(false)
+    }
+  }
+
+  async function deleteAppointment(id) {
+    setSavingAppointment(true)
+    setModalError(null)
+    try {
+      await eliminarCita(id)
+      setModalAppointment(null)
+      await refreshAppointments()
+    } catch (err) {
+      setModalError(err.message)
+    } finally {
+      setSavingAppointment(false)
+    }
+  }
+
+  function renderMainContent() {
+    if (loading) return <section className="empty-panel">Cargando negocios...</section>
+    if (businesses.length === 0) return <section className="empty-panel"><h2>No tienes negocios activos todavía.</h2><p>Cuando exista un negocio asociado a tu usuario, aquí aparecerán sus citas, servicios y clientes.</p></section>
+    if (error) return <section className="empty-panel error-panel"><h2>No pudimos cargar el dashboard.</h2><p>{error}</p></section>
+    if (activeSection === 'calendar') return <Schedule expanded selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} />
+    if (activeSection === 'appointments') return <AppointmentList appointments={appointments} customers={customers} professionals={professionals} services={services} onEdit={setModalAppointment} onNew={() => openNewAppointment()} />
+    if (['customers', 'services', 'team'].includes(activeSection)) return <DirectoryView type={activeSection} customers={customers} services={services} professionals={professionals} />
+    if (activeSection === 'reports') return <ReportsView appointments={appointments} services={services} />
+    if (activeSection === 'settings') return <SettingsView settings={settings} setSettings={setSettings} />
+    return <><section className="stats-grid"><article className="stat-card"><span className="stat-icon green"><Icon name="calendar" /></span><div><small>Citas del día</small><strong>{dayAppointments.length}</strong><p><b>{dayAppointments.filter((item) => item.status === 'confirmed').length}</b> confirmadas</p></div></article><article className="stat-card"><span className="stat-icon dark"><Icon name="customers" /></span><div><small>Clientes agendados</small><strong>{new Set(dayAppointments.map((item) => item.customerId)).size}</strong><p>Agenda seleccionada</p></div></article><article className="stat-card"><span className="stat-icon soft"><Icon name="reports" /></span><div><small>Ingresos estimados</small><strong>RD$ {revenue.toLocaleString()}</strong><p>Servicios no cancelados</p></div></article><article className="stat-card"><span className="stat-icon amber"><Icon name="team" /></span><div><small>Personal activo</small><strong>{professionals.length}</strong><p>Profesionales del negocio</p></div></article></section><section className="workspace-grid"><Schedule selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} /><aside className="today-card"><div className="card-heading"><div><span className="section-kicker">PRÓXIMAS</span><h2>Citas por atender</h2></div></div>{appointmentsLoading && <div className="empty-state compact">Actualizando agenda...</div>}{!appointmentsLoading && dayAppointments.sort((a, b) => a.time.localeCompare(b.time)).slice(0, 5).map((appointment) => <button className="next-appointment" key={appointment.id} onClick={() => setModalAppointment(appointment)}><span className="appointment-time">{appointment.time}</span><div><strong>{customers.find((item) => item.id === appointment.customerId)?.name ?? appointment.customerName}</strong><p>{services.find((item) => item.id === appointment.serviceId)?.name ?? appointment.serviceName} · {professionals.find((item) => item.id === appointment.professionalId)?.shortName ?? appointment.professionalName}</p></div><Icon name="chevron" /></button>)}{!appointmentsLoading && dayAppointments.length === 0 && <div className="empty-state compact">No hay citas para este día.</div>}<button className="view-all-button" onClick={() => selectSection('appointments')}>Ver todas las citas <Icon name="chevron" /></button><div className="occupancy-card"><div><span>Ocupación del día</span><strong>{Math.min(100, Math.round(dayAppointments.length / 16 * 100))}%</strong></div><div className="progress-track"><span style={{ width: `${Math.min(100, dayAppointments.length / 16 * 100)}%` }} /></div><p>{dayAppointments.length} citas registradas</p></div></aside></section></>
+  }
+
+  return <main className="dashboard-page">{menuOpen && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} />}<aside className={`dashboard-sidebar ${menuOpen ? 'open' : ''}`}><div className="sidebar-logo-wrap"><img src={glowUpLogo} alt="GlowUp RD" className="sidebar-logo" /></div><nav className="sidebar-nav" aria-label="Navegación principal"><span className="nav-label">GESTIÓN</span>{navigation.slice(0, 6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}<span className="nav-label nav-label-secondary">ANÁLISIS</span>{navigation.slice(6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}</nav><div className="sidebar-user"><span className="user-avatar">{initials || 'GU'}</span><span className="user-info"><strong>{user.nombre} {user.apellido}</strong><small>{user.correo}</small></span><button onClick={() => setLogoutConfirmationOpen(true)} title="Cerrar sesión" aria-label="Cerrar sesión"><Icon name="logout" /></button></div></aside><section className="dashboard-content"><header className="dashboard-header"><div className="header-title-wrap"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button><div><span className="page-kicker">{activeSection === 'dashboard' ? 'PANEL PRINCIPAL' : 'GESTIÓN'}</span><h1>{activeSection === 'dashboard' ? `Buenos días, ${user.nombre}` : sectionTitles[activeSection]}</h1><p className="current-date">{formatLongDate(selectedDate)}</p></div></div><div className="header-actions">{businesses.length > 1 && <select className="business-selector" value={selectedBusinessId} onChange={(event) => setSelectedBusinessId(event.target.value)}>{businesses.map((business) => <option key={business.id} value={business.id}>{business.nombre}</option>)}</select>}<div className="notification-wrap"><button className="notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Icon name="bell" /><span /></button>{notificationsOpen && <div className="notification-popover"><strong>Notificaciones</strong><p>Tienes {dayAppointments.filter((item) => item.status === 'pending').length} citas pendientes de confirmar.</p><button onClick={() => { selectSection('appointments'); setNotificationsOpen(false) }}>Revisar citas</button></div>}</div><button className="new-appointment" onClick={() => openNewAppointment()} disabled={!selectedBusinessId || customers.length === 0 || professionals.length === 0 || services.length === 0}><Icon name="plus" />Nueva cita</button></div></header>{renderMainContent()}</section>{modalAppointment && <AppointmentModal appointment={modalAppointment} branches={branches} customers={customers} professionals={professionals} services={services} saving={savingAppointment} error={modalError} onClose={() => setModalAppointment(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}{logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={onLogout} />}</main>
 }
 
 export default Dashboard
