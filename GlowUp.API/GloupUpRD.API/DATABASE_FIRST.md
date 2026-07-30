@@ -1,48 +1,65 @@
-# PostgreSQL Database First
+# PostgreSQL Database First (Neon)
 
-## Create the database and apply the schema
+El proyecto usa una única base de datos PostgreSQL compartida, alojada en
+[Neon](https://neon.tech). No hay ninguna base de datos local que instalar —
+todos (y todas las máquinas) se conectan a la misma base en la nube, así que el
+esquema y los datos se mantienen sincronizados automáticamente entre todo el equipo.
 
-Install PostgreSQL locally (any recent version), then create the database and run the
-schema script from `Database/Scripts/schema_postgresql.sql`:
+## Sumarse a un proyecto ya existente (el caso más común)
 
-```powershell
-createdb -U postgres glowuprd_db
-psql -U postgres -d glowuprd_db -f Database\Scripts\schema_postgresql.sql
-```
+Si el proyecto de Neon ya existe, solo necesitas el connection string:
 
-The script creates all tables (named in Spanish, matching the API's DTOs) with their
-indexes, foreign keys, and the `set_actualizado_en()` trigger that replaces MySQL's
-`ON UPDATE CURRENT_TIMESTAMP` behavior.
+1. Pídele a un compañero el connection string de Neon (compártanlo de forma privada —
+   gestor de contraseñas, mensaje directo, etc. — **nunca** por GitHub, issues, ni
+   ningún historial de chat que no sea privado).
+2. Guárdalo con los user secrets de .NET. El connection string de Neon tiene esta
+   forma: `postgresql://usuario:password@host/db?sslmode=require`; conviértelo al
+   formato de pares separados por `;` que espera Npgsql:
 
-## Configure the connection
+   ```powershell
+   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=<host-de-neon>;Port=5432;Database=<db-de-neon>;Username=<usuario-de-neon>;Password=<password-de-neon>;Ssl Mode=Require;" --project "GloupUpRD.API\GloupUpRD.API.csproj"
+   ```
 
-For local development, store the complete connection string with .NET user secrets:
+   Neon siempre usa el puerto 5432 y exige SSL, así que `Port=5432;Ssl Mode=Require;`
+   nunca cambian entre compañeros de equipo — solo `Host`, `Database`, `Username` y
+   `Password` vienen del connection string que te dio Neon.
+3. Corre `dotnet tool restore` una vez (restaura la herramienta local `dotnet-ef` desde
+   el manifiesto, no hace falta instalación global).
+4. Corre la API. Si conecta, ya está — el esquema y los datos existentes ya están ahí.
 
-```powershell
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=glowuprd_db;Username=postgres;Password=your_password;"
-```
+No commitees credenciales reales de la base de datos. `appsettings.json`/
+`appsettings.Development.json` solo contienen valores de relleno; el valor real vive
+exclusivamente en los user secrets, que se guardan fuera del repositorio en cada
+máquina.
 
-Do not commit real database credentials.
+## Configurar un proyecto de Neon nuevo desde cero (solo se hace una vez, o para un entorno nuevo)
 
-## Restore the EF CLI
+1. Crea un proyecto en [console.neon.tech](https://console.neon.tech).
+2. Abre el **SQL Editor** del proyecto y corre el contenido completo de
+   `Database/Scripts/schema_postgresql.sql`. Esto crea las 23 tablas (nombradas en
+   español, igual que los DTOs de la API) con sus índices, llaves foráneas, y el
+   trigger `set_actualizado_en()` que mantiene actualizadas las columnas
+   `actualizado_en` en cada modificación.
+3. Copia el connection string desde el panel de Neon y sigue los pasos de "Sumarse a
+   un proyecto ya existente" de arriba para configurarlo localmente.
 
-```powershell
-dotnet tool restore
-```
+## Regenerar el contexto y las entidades después de un cambio de esquema
 
-The solution includes a local `dotnet-ef` 8.0.13 tool manifest, so a global
-installation is not required.
-
-## Generate the context and entities
-
-Run this command from the solution directory (`GloupUpRD.API`):
+Si modificas `Database/Scripts/schema_postgresql.sql` (agregas una columna, una tabla,
+etc.), aplícalo primero en el SQL Editor de Neon, y luego vuelve a correr el scaffolding
+desde la carpeta de la solución (`GloupUpRD.API`):
 
 ```powershell
 dotnet ef dbcontext scaffold "Name=ConnectionStrings:DefaultConnection" Npgsql.EntityFrameworkCore.PostgreSQL --project GlowUp.Core\GlowUp.Core.csproj --startup-project GloupUpRD.API\GloupUpRD.API.csproj --context GlowUpDbContext --context-dir Data --output-dir Models --namespace GloupUpRD.API.Models --context-namespace GloupUpRD.API.Data --no-onconfiguring --force -- --environment Development
 ```
 
-The command reads the existing PostgreSQL schema and regenerates
-`GlowUp.Core/Data/GlowUpDbContext.cs` and the entity classes under
-`GlowUp.Core/Models` (in Spanish: `Cita`, `Negocio`, `Sucursal`, etc.). Re-run it after
-database schema changes (update `Database/Scripts/schema_postgresql.sql` first, apply
-it, then re-scaffold), and adapt application services if the database contract changed.
+Esto lee el esquema actual desde Neon y regenera `GlowUp.Core/Data/GlowUpDbContext.cs`
+y las clases de entidad bajo `GlowUp.Core/Models` (en español: `Cita`, `Negocio`,
+`Sucursal`, etc.). Ajusta los servicios de la aplicación después si el contrato de la
+base de datos cambió.
+
+## Configuración del frontend
+
+El connection string de la API de arriba solo cubre el backend. Para correr la app web
+contra esa base, sigue la sección "Desarrollo con API" de `GlowUp.Web/README.md` (copia
+`.env.example` a `.env` y define `VITE_AUTH_MODE=api`).
