@@ -1,4 +1,4 @@
-﻿using GloupUpRD.API.DTOs.Autenticacion;
+using GloupUpRD.API.DTOs.Autenticacion;
 using GloupUpRD.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,27 +14,6 @@ public class AutenticacionController : ControllerBase
     public AutenticacionController(IAuthService authService)
     {
         _authService = authService;
-    }
-
-    [AllowAnonymous]
-    [HttpPost("registrar")]
-    [ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<UsuarioResponse>> Registrar(
-        [FromBody] RegistrarUsuarioRequest request,
-        CancellationToken cancellationToken)
-    {
-        var resultado = await _authService.RegistrarAsync(request, cancellationToken);
-
-        if (resultado is null)
-        {
-            return Conflict(new ProblemDetails
-            {
-                Title = "El correo ya se encuentra registrado."
-            });
-        }
-
-        return CreatedAtAction(nameof(ObtenerPorId), new { id = resultado.Id }, resultado);
     }
 
     [AllowAnonymous]
@@ -63,14 +42,6 @@ public class AutenticacionController : ControllerBase
         var usuario = await _authService.ObtenerPorIdAsync(id, cancellationToken);
         return usuario is null ? NotFound() : Ok(usuario);
     }
-
-    [Authorize]
-    [HttpGet("usuarios")]
-    [ProducesResponseType(typeof(IReadOnlyList<UsuarioResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<UsuarioResponse>>> Buscar(
-        [FromQuery] string? termino,
-        CancellationToken cancellationToken) =>
-        Ok(await _authService.BuscarAsync(termino, cancellationToken));
 
     [Authorize]
     [HttpPut("usuarios/{id:long}")]
@@ -105,5 +76,47 @@ public class AutenticacionController : ControllerBase
     {
         var desactivado = await _authService.DesactivarAsync(id, cancellationToken);
         return desactivado ? NoContent() : NotFound();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("olvide-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> OlvidePassword(
+        [FromBody] OlvidePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _authService.OlvidePasswordAsync(request, cancellationToken);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("restablecer-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RestablecerPassword(
+        [FromBody] RestablecerPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _authService.RestablecerPasswordAsync(request, cancellationToken);
+        return resultado.Status == MaintenanceStatus.Success
+            ? NoContent()
+            : BadRequest(new ProblemDetails { Title = resultado.Error });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("google")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<LoginResponse>> Google(
+        [FromBody] GoogleLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _authService.IniciarSesionConGoogleAsync(request, cancellationToken);
+        return resultado.Status switch
+        {
+            MaintenanceStatus.Success => Ok(resultado.Data),
+            MaintenanceStatus.Forbidden => StatusCode(403, new ProblemDetails { Title = resultado.Error }),
+            _ => BadRequest(new ProblemDetails { Title = resultado.Error })
+        };
     }
 }

@@ -9,7 +9,14 @@ import {
   obtenerCatalogos,
   obtenerNegocios,
 } from '../services/citasApi'
+import { actualizarEmpleado, buscarEmpleados, crearEmpleado } from '../services/empleadosApi'
+import { actualizarCliente, buscarClientes, crearCliente } from '../services/clientesApi'
+import { actualizarServicio, buscarServicios, crearServicio } from '../services/serviciosApi'
+import { obtenerReporte } from '../services/reportesApi'
 import AppointmentModal from './AppointmentModal'
+import EmployeeModal from './EmployeeModal'
+import ClientModal from './ClientModal'
+import ServiceModal from './ServiceModal'
 import './Dashboard.css'
 
 const navigation = [
@@ -138,6 +145,97 @@ function buildAppointmentPayload(form, businessId) {
   }
 }
 
+function mapEmployee(item) {
+  return {
+    id: String(item.id),
+    negocioId: String(item.negocioId),
+    sucursalId: item.sucursalId ? String(item.sucursalId) : '',
+    sucursal: item.sucursal,
+    nombre: item.nombre,
+    apellido: item.apellido,
+    telefono: item.telefono ?? '',
+    correo: item.correo ?? '',
+    puesto: item.puesto ?? '',
+    biografia: item.biografia ?? '',
+    estado: item.estado,
+    activo: item.estado === 'active',
+    tieneAcceso: item.tieneAcceso,
+  }
+}
+
+function buildEmpleadoPayload(form, businessId) {
+  return {
+    negocioId: Number(businessId),
+    sucursalId: form.sucursalId ? Number(form.sucursalId) : null,
+    nombre: form.nombre.trim(),
+    apellido: form.apellido.trim(),
+    telefono: form.telefono?.trim() || null,
+    correo: form.correo?.trim() || null,
+    puesto: form.puesto?.trim() || null,
+    biografia: form.biografia?.trim() || null,
+    activo: form.activo,
+    crearAcceso: Boolean(form.crearAcceso),
+    password: form.crearAcceso ? form.password : null,
+  }
+}
+
+function mapClient(item) {
+  return {
+    id: String(item.id),
+    nombre: item.nombre,
+    apellido: item.apellido,
+    telefono: item.telefono ?? '',
+    correo: item.correo ?? '',
+    fechaNacimiento: item.fechaNacimiento ?? '',
+    genero: item.genero ?? 'not_specified',
+    notas: item.notas ?? '',
+    estado: item.estado,
+    activo: item.estado === 'active',
+    totalVisitas: item.totalVisitas ?? 0,
+  }
+}
+
+function buildClientePayload(form, businessId) {
+  return {
+    negocioId: Number(businessId),
+    nombre: form.nombre.trim(),
+    apellido: form.apellido.trim(),
+    telefono: form.telefono?.trim() || null,
+    correo: form.correo?.trim() || null,
+    fechaNacimiento: form.fechaNacimiento || null,
+    genero: form.genero || null,
+    notas: form.notas?.trim() || null,
+  }
+}
+
+function mapServiceItem(item) {
+  return {
+    id: String(item.id),
+    negocioId: String(item.negocioId),
+    nombre: item.nombre,
+    descripcion: item.descripcion ?? '',
+    duracionMinutos: item.duracionMinutos,
+    precio: item.precio,
+    minutosAntes: item.minutosAntes,
+    minutosDespues: item.minutosDespues,
+    activo: item.activo,
+  }
+}
+
+function buildServicioPayload(form, businessId) {
+  return {
+    negocioId: Number(businessId),
+    categoriaId: null,
+    nombre: form.nombre.trim(),
+    descripcion: form.descripcion?.trim() || null,
+    duracionMinutos: Number(form.duracionMinutos),
+    precio: Number(form.precio),
+    minutosAntes: Number(form.minutosAntes) || 0,
+    minutosDespues: Number(form.minutosDespues) || 0,
+    activo: form.activo,
+  }
+}
+
 function Schedule({ selectedDate, appointments, professionals, customers, services, onChangeDate, onOpenAppointment, expanded = false }) {
   const [uiSettings] = useLocalStorage('glowup_ui_settings', { reminders: true, confirmations: true, compactCalendar: false })
   const dayAppointments = appointments.filter((item) => item.date === toDateKey(selectedDate) && item.status !== 'cancelled')
@@ -189,21 +287,113 @@ function AppointmentList({ appointments, customers, professionals, services, onE
   return <section className="data-card"><div className="data-toolbar"><div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar cliente..." /></div><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">Todos los estados</option><option value="confirmed">Confirmadas</option><option value="pending">Pendientes</option><option value="completed">Completadas</option><option value="cancelled">Canceladas</option><option value="no_show">No asistió</option></select><button className="new-appointment" onClick={onNew}><Icon name="plus" />Nueva cita</button></div><div className="responsive-table"><table><thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Servicio</th><th>Profesional</th><th>Estado</th><th /></tr></thead><tbody>{filtered.map((appointment) => <tr key={appointment.id}><td><strong>{appointment.date}</strong><small>{appointment.time}</small></td><td>{customers.find((item) => item.id === appointment.customerId)?.name ?? appointment.customerName}</td><td>{services.find((item) => item.id === appointment.serviceId)?.name ?? appointment.serviceName}</td><td>{professionals.find((item) => item.id === appointment.professionalId)?.name ?? appointment.professionalName}</td><td><span className={`table-status ${appointment.status}`}>{statusLabel(appointment.status)}</span></td><td><button className="row-action" onClick={() => onEdit(appointment)}>Editar</button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="empty-state">No hay citas que coincidan con los filtros.</div>}</div></section>
 }
 
-function DirectoryView({ type, customers, services, professionals }) {
+function ServicesView({ services, onEdit, onNew }) {
   const [query, setQuery] = useState('')
-  const content = type === 'customers'
-    ? customers.map((item) => ({ ...item, subtitle: item.phone, detail: 'Cliente activo' }))
-    : type === 'services'
-      ? services.map((item) => ({ ...item, subtitle: item.category, detail: `RD$ ${item.price.toLocaleString()} · ${item.duration} min` }))
-      : professionals.map((item) => ({ ...item, subtitle: item.specialty, detail: 'Disponible' }))
-  const filtered = content.filter((item) => (item.name ?? '').toLowerCase().includes(query.toLowerCase()))
-  return <section className="directory-view"><div className="data-toolbar"><div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar..." /></div><span className="result-count">{filtered.length} resultados</span></div><div className="directory-grid">{filtered.map((item) => <article key={item.id} className="directory-card"><span className="directory-avatar">{item.initials ?? getInitials(item.name ?? '')}</span><div><strong>{item.name}</strong><p>{item.subtitle}</p><small>{item.detail}</small></div></article>)}</div></section>
+  const filtered = services.filter((item) => item.nombre.toLowerCase().includes(query.toLowerCase()))
+  return (
+    <section className="data-card">
+      <div className="data-toolbar">
+        <div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar servicio..." /></div>
+        <button className="new-appointment" onClick={onNew}><Icon name="plus" />Nuevo servicio</button>
+      </div>
+      <div className="directory-grid">
+        {filtered.map((item) => (
+          <button type="button" key={item.id} className="directory-card directory-card-button" onClick={() => onEdit(item)}>
+            <span className="directory-avatar">{getInitials(item.nombre)}</span>
+            <div>
+              <strong>{item.nombre}</strong>
+              <p>RD$ {Number(item.precio).toLocaleString()} · {item.duracionMinutos} min</p>
+              <small>{item.activo ? 'Activo' : 'Inactivo'}</small>
+            </div>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 && <div className="empty-state">No hay servicios que coincidan.</div>}
+    </section>
+  )
 }
 
-function ReportsView({ appointments, services }) {
-  const active = appointments.filter((item) => item.status !== 'cancelled')
-  const values = [58, 72, 64, 88, 79, 93, 76]
-  return <section className="reports-view"><div className="report-summary"><article><small>Ingresos estimados</small><strong>RD$ {active.reduce((sum, item) => sum + (item.total ?? services.find((service) => service.id === item.serviceId)?.price ?? 0), 0).toLocaleString()}</strong><span>Según las citas registradas</span></article><article><small>Tasa de confirmación</small><strong>{active.length ? Math.round(active.filter((item) => item.status === 'confirmed').length / active.length * 100) : 0}%</strong><span>Citas actualmente confirmadas</span></article><article><small>Servicios agendados</small><strong>{active.length}</strong><span>En el período visible</span></article></div><article className="chart-card"><div><span className="section-kicker">RENDIMIENTO</span><h2>Ocupación semanal</h2></div><div className="bar-chart">{values.map((value, index) => <div key={index}><span style={{ height: `${value}%` }} /><small>{['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][index]}</small></div>)}</div></article></section>
+function TeamView({ employees, onEdit, onNew }) {
+  const [query, setQuery] = useState('')
+  const filtered = employees.filter((item) => `${item.nombre} ${item.apellido}`.toLowerCase().includes(query.toLowerCase()))
+  return (
+    <section className="data-card">
+      <div className="data-toolbar">
+        <div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar empleado..." /></div>
+        <button className="new-appointment" onClick={onNew}><Icon name="plus" />Nuevo empleado</button>
+      </div>
+      <div className="directory-grid">
+        {filtered.map((item) => (
+          <button type="button" key={item.id} className="directory-card directory-card-button" onClick={() => onEdit(item)}>
+            <span className="directory-avatar">{getInitials(`${item.nombre} ${item.apellido}`)}</span>
+            <div>
+              <strong>{item.nombre} {item.apellido}</strong>
+              <p>{item.puesto || 'Sin puesto asignado'}</p>
+              <small>{item.sucursal ?? 'Sin sucursal'} · {item.activo ? 'Activo' : 'Inactivo'}{item.tieneAcceso ? ' · Con acceso al panel' : ''}</small>
+            </div>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 && <div className="empty-state">No hay empleados que coincidan.</div>}
+    </section>
+  )
+}
+
+function ClientsView({ clients, onEdit, onNew }) {
+  const [query, setQuery] = useState('')
+  const filtered = clients.filter((item) => `${item.nombre} ${item.apellido}`.toLowerCase().includes(query.toLowerCase()))
+  return (
+    <section className="data-card">
+      <div className="data-toolbar">
+        <div className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar cliente..." /></div>
+        <button className="new-appointment" onClick={onNew}><Icon name="plus" />Nuevo cliente</button>
+      </div>
+      <div className="directory-grid">
+        {filtered.map((item) => (
+          <button type="button" key={item.id} className="directory-card directory-card-button" onClick={() => onEdit(item)}>
+            <span className="directory-avatar">{getInitials(`${item.nombre} ${item.apellido}`)}</span>
+            <div>
+              <strong>{item.nombre} {item.apellido}</strong>
+              <p>{item.telefono || item.correo || 'Sin contacto'}</p>
+              <small>{item.activo ? 'Activo' : 'Inactivo'} · {item.totalVisitas} visitas</small>
+            </div>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 && <div className="empty-state">No hay clientes que coincidan.</div>}
+    </section>
+  )
+}
+
+const diaLabels = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 0: 'Dom' }
+const diaOrden = [1, 2, 3, 4, 5, 6, 0]
+
+function ReportsView({ negocioId }) {
+  const [reporte, setReporte] = useState(null)
+  const [loadingReporte, setLoadingReporte] = useState(true)
+  const [reporteError, setReporteError] = useState(null)
+
+  useEffect(() => {
+    if (!negocioId) return
+    let active = true
+    setLoadingReporte(true)
+    setReporteError(null)
+    const hasta = new Date()
+    const desde = addDays(hasta, -6)
+    obtenerReporte({ negocioId, desde: toDateKey(desde), hasta: toDateKey(hasta) })
+      .then((data) => { if (active) setReporte(data) })
+      .catch((err) => active && setReporteError(err.message))
+      .finally(() => active && setLoadingReporte(false))
+    return () => { active = false }
+  }, [negocioId])
+
+  if (loadingReporte) return <section className="empty-panel">Cargando reportes...</section>
+  if (reporteError) return <section className="empty-panel error-panel"><h2>No pudimos cargar los reportes.</h2><p>{reporteError}</p></section>
+  if (!reporte) return null
+
+  const ocupacionPorDia = Object.fromEntries(reporte.ocupacionSemanal.map((item) => [item.diaSemana, item.porcentaje]))
+
+  return <section className="reports-view"><div className="report-summary"><article><small>Ingresos estimados</small><strong>RD$ {reporte.ingresosTotales.toLocaleString()}</strong><span>Últimos 7 días</span></article><article><small>Tasa de confirmación</small><strong>{reporte.tasaConfirmacion}%</strong><span>Citas confirmadas o completadas</span></article><article><small>Servicios agendados</small><strong>{reporte.serviciosAgendados}</strong><span>En el período visible</span></article></div><article className="chart-card"><div><span className="section-kicker">RENDIMIENTO</span><h2>Ocupación semanal</h2></div><div className="bar-chart">{diaOrden.map((dia) => <div key={dia}><span style={{ height: `${ocupacionPorDia[dia] ?? 0}%` }} /><small>{diaLabels[dia]}</small></div>)}</div></article></section>
 }
 
 function SettingsView({ settings, setSettings }) {
@@ -239,6 +429,9 @@ function Dashboard({ session, onLogout }) {
   const [professionals, setProfessionals] = useState([])
   const [services, setServices] = useState([])
   const [appointments, setAppointments] = useState([])
+  const [teamMembers, setTeamMembers] = useState([])
+  const [clientsList, setClientsList] = useState([])
+  const [serviceList, setServiceList] = useState([])
   const [loading, setLoading] = useState(true)
   const [appointmentsLoading, setAppointmentsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -246,6 +439,15 @@ function Dashboard({ session, onLogout }) {
   const [savingAppointment, setSavingAppointment] = useState(false)
   const [settings, setSettings] = useLocalStorage('glowup_ui_settings', { reminders: true, confirmations: true, compactCalendar: false })
   const [modalAppointment, setModalAppointment] = useState(null)
+  const [modalEmployee, setModalEmployee] = useState(null)
+  const [savingEmployee, setSavingEmployee] = useState(false)
+  const [employeeModalError, setEmployeeModalError] = useState(null)
+  const [modalClient, setModalClient] = useState(null)
+  const [savingClient, setSavingClient] = useState(false)
+  const [clientModalError, setClientModalError] = useState(null)
+  const [modalService, setModalService] = useState(null)
+  const [savingService, setSavingService] = useState(false)
+  const [serviceModalError, setServiceModalError] = useState(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false)
   const user = session.usuario
@@ -277,8 +479,11 @@ function Dashboard({ session, onLogout }) {
     Promise.all([
       obtenerCatalogos(selectedBusinessId),
       buscarCitas({ negocioId: selectedBusinessId, desde: dateKey, hasta: dateKey }),
+      buscarEmpleados({ negocioId: selectedBusinessId, incluirInactivos: true }),
+      buscarClientes({ negocioId: selectedBusinessId, incluirInactivos: true }),
+      buscarServicios({ negocioId: selectedBusinessId, incluirInactivos: true }),
     ])
-      .then(([catalog, citas]) => {
+      .then(([catalog, citas, empleados, clientes, servicios]) => {
         if (!active) return
         const mappedCatalog = mapCatalog(catalog)
         setBranches(mappedCatalog.branches)
@@ -286,12 +491,107 @@ function Dashboard({ session, onLogout }) {
         setProfessionals(mappedCatalog.professionals)
         setServices(mappedCatalog.services)
         setAppointments((citas ?? []).map(mapAppointment))
+        setTeamMembers((empleados ?? []).map(mapEmployee))
+        setClientsList((clientes ?? []).map(mapClient))
+        setServiceList((servicios ?? []).map(mapServiceItem))
       })
       .catch((err) => active && setError(err.message))
       .finally(() => active && setAppointmentsLoading(false))
 
     return () => { active = false }
   }, [selectedBusinessId, dateKey])
+
+  async function refreshTeam() {
+    if (!selectedBusinessId) return
+    const empleados = await buscarEmpleados({ negocioId: selectedBusinessId, incluirInactivos: true })
+    setTeamMembers((empleados ?? []).map(mapEmployee))
+  }
+
+  async function refreshClients() {
+    if (!selectedBusinessId) return
+    const clientes = await buscarClientes({ negocioId: selectedBusinessId, incluirInactivos: true })
+    setClientsList((clientes ?? []).map(mapClient))
+  }
+
+  async function refreshServices() {
+    if (!selectedBusinessId) return
+    const servicios = await buscarServicios({ negocioId: selectedBusinessId, incluirInactivos: true })
+    setServiceList((servicios ?? []).map(mapServiceItem))
+  }
+
+  function openNewService() {
+    setServiceModalError(null)
+    setModalService({ activo: true })
+  }
+
+  async function saveService(form) {
+    setSavingService(true)
+    setServiceModalError(null)
+    try {
+      const payload = buildServicioPayload(form, selectedBusinessId)
+      if (form.id) {
+        await actualizarServicio(form.id, payload)
+      } else {
+        await crearServicio(payload)
+      }
+      setModalService(null)
+      await refreshServices()
+      const catalog = await obtenerCatalogos(selectedBusinessId)
+      setServices(mapCatalog(catalog).services)
+    } catch (err) {
+      setServiceModalError(err.message)
+    } finally {
+      setSavingService(false)
+    }
+  }
+
+  function openNewClient() {
+    setClientModalError(null)
+    setModalClient({})
+  }
+
+  async function saveClient(form) {
+    setSavingClient(true)
+    setClientModalError(null)
+    try {
+      const payload = buildClientePayload(form, selectedBusinessId)
+      if (form.id) {
+        await actualizarCliente(form.id, payload)
+      } else {
+        await crearCliente(payload)
+      }
+      setModalClient(null)
+      await refreshClients()
+    } catch (err) {
+      setClientModalError(err.message)
+    } finally {
+      setSavingClient(false)
+    }
+  }
+
+  function openNewEmployee() {
+    setEmployeeModalError(null)
+    setModalEmployee({ activo: true, crearAcceso: false })
+  }
+
+  async function saveEmployee(form) {
+    setSavingEmployee(true)
+    setEmployeeModalError(null)
+    try {
+      const payload = buildEmpleadoPayload(form, selectedBusinessId)
+      if (form.id) {
+        await actualizarEmpleado(form.id, payload)
+      } else {
+        await crearEmpleado(payload)
+      }
+      setModalEmployee(null)
+      await refreshTeam()
+    } catch (err) {
+      setEmployeeModalError(err.message)
+    } finally {
+      setSavingEmployee(false)
+    }
+  }
 
   async function refreshAppointments() {
     if (!selectedBusinessId) return
@@ -357,13 +657,15 @@ function Dashboard({ session, onLogout }) {
     if (error) return <section className="empty-panel error-panel"><h2>No pudimos cargar el dashboard.</h2><p>{error}</p></section>
     if (activeSection === 'calendar') return <Schedule expanded selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} />
     if (activeSection === 'appointments') return <AppointmentList appointments={appointments} customers={customers} professionals={professionals} services={services} onEdit={setModalAppointment} onNew={() => openNewAppointment()} />
-    if (['customers', 'services', 'team'].includes(activeSection)) return <DirectoryView type={activeSection} customers={customers} services={services} professionals={professionals} />
-    if (activeSection === 'reports') return <ReportsView appointments={appointments} services={services} />
+    if (activeSection === 'team') return <TeamView employees={teamMembers} onEdit={setModalEmployee} onNew={openNewEmployee} />
+    if (activeSection === 'customers') return <ClientsView clients={clientsList} onEdit={setModalClient} onNew={openNewClient} />
+    if (activeSection === 'services') return <ServicesView services={serviceList} onEdit={setModalService} onNew={openNewService} />
+    if (activeSection === 'reports') return <ReportsView negocioId={selectedBusinessId} />
     if (activeSection === 'settings') return <SettingsView settings={settings} setSettings={setSettings} />
     return <><section className="stats-grid"><article className="stat-card"><span className="stat-icon green"><Icon name="calendar" /></span><div><small>Citas del día</small><strong>{dayAppointments.length}</strong><p><b>{dayAppointments.filter((item) => item.status === 'confirmed').length}</b> confirmadas</p></div></article><article className="stat-card"><span className="stat-icon dark"><Icon name="customers" /></span><div><small>Clientes agendados</small><strong>{new Set(dayAppointments.map((item) => item.customerId)).size}</strong><p>Agenda seleccionada</p></div></article><article className="stat-card"><span className="stat-icon soft"><Icon name="reports" /></span><div><small>Ingresos estimados</small><strong>RD$ {revenue.toLocaleString()}</strong><p>Servicios no cancelados</p></div></article><article className="stat-card"><span className="stat-icon amber"><Icon name="team" /></span><div><small>Personal activo</small><strong>{professionals.length}</strong><p>Profesionales del negocio</p></div></article></section><section className="workspace-grid"><Schedule selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} /><aside className="today-card"><div className="card-heading"><div><span className="section-kicker">PRÓXIMAS</span><h2>Citas por atender</h2></div></div>{appointmentsLoading && <div className="empty-state compact">Actualizando agenda...</div>}{!appointmentsLoading && dayAppointments.sort((a, b) => a.time.localeCompare(b.time)).slice(0, 5).map((appointment) => <button className="next-appointment" key={appointment.id} onClick={() => setModalAppointment(appointment)}><span className="appointment-time">{appointment.time}</span><div><strong>{customers.find((item) => item.id === appointment.customerId)?.name ?? appointment.customerName}</strong><p>{services.find((item) => item.id === appointment.serviceId)?.name ?? appointment.serviceName} · {professionals.find((item) => item.id === appointment.professionalId)?.shortName ?? appointment.professionalName}</p></div><Icon name="chevron" /></button>)}{!appointmentsLoading && dayAppointments.length === 0 && <div className="empty-state compact">No hay citas para este día.</div>}<button className="view-all-button" onClick={() => selectSection('appointments')}>Ver todas las citas <Icon name="chevron" /></button><div className="occupancy-card"><div><span>Ocupación del día</span><strong>{Math.min(100, Math.round(dayAppointments.length / 16 * 100))}%</strong></div><div className="progress-track"><span style={{ width: `${Math.min(100, dayAppointments.length / 16 * 100)}%` }} /></div><p>{dayAppointments.length} citas registradas</p></div></aside></section></>
   }
 
-  return <main className="dashboard-page">{menuOpen && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} />}<aside className={`dashboard-sidebar ${menuOpen ? 'open' : ''}`}><div className="sidebar-logo-wrap"><img src={glowUpLogo} alt="GlowUp RD" className="sidebar-logo" /></div><nav className="sidebar-nav" aria-label="Navegación principal"><span className="nav-label">GESTIÓN</span>{navigation.slice(0, 6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}<span className="nav-label nav-label-secondary">ANÁLISIS</span>{navigation.slice(6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}</nav><div className="sidebar-user"><span className="user-avatar">{initials || 'GU'}</span><span className="user-info"><strong>{user.nombre} {user.apellido}</strong><small>{user.correo}</small></span><button onClick={() => setLogoutConfirmationOpen(true)} title="Cerrar sesión" aria-label="Cerrar sesión"><Icon name="logout" /></button></div></aside><section className="dashboard-content"><header className="dashboard-header"><div className="header-title-wrap"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button><div><span className="page-kicker">{activeSection === 'dashboard' ? 'PANEL PRINCIPAL' : 'GESTIÓN'}</span><h1>{activeSection === 'dashboard' ? `Buenos días, ${user.nombre}` : sectionTitles[activeSection]}</h1><p className="current-date">{formatLongDate(selectedDate)}</p></div></div><div className="header-actions">{businesses.length > 1 && <select className="business-selector" value={selectedBusinessId} onChange={(event) => setSelectedBusinessId(event.target.value)}>{businesses.map((business) => <option key={business.id} value={business.id}>{business.nombre}</option>)}</select>}<div className="notification-wrap"><button className="notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Icon name="bell" /><span /></button>{notificationsOpen && <div className="notification-popover"><strong>Notificaciones</strong><p>Tienes {dayAppointments.filter((item) => item.status === 'pending').length} citas pendientes de confirmar.</p><button onClick={() => { selectSection('appointments'); setNotificationsOpen(false) }}>Revisar citas</button></div>}</div><button className="new-appointment" onClick={() => openNewAppointment()} disabled={!selectedBusinessId || customers.length === 0 || professionals.length === 0 || services.length === 0}><Icon name="plus" />Nueva cita</button></div></header>{renderMainContent()}</section>{modalAppointment && <AppointmentModal appointment={modalAppointment} branches={branches} customers={customers} professionals={professionals} services={services} saving={savingAppointment} error={modalError} onClose={() => setModalAppointment(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}{logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={onLogout} />}</main>
+  return <main className="dashboard-page">{menuOpen && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} />}<aside className={`dashboard-sidebar ${menuOpen ? 'open' : ''}`}><div className="sidebar-logo-wrap"><img src={glowUpLogo} alt="GlowUp RD" className="sidebar-logo" /></div><nav className="sidebar-nav" aria-label="Navegación principal"><span className="nav-label">GESTIÓN</span>{navigation.slice(0, 6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}<span className="nav-label nav-label-secondary">ANÁLISIS</span>{navigation.slice(6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}</nav><div className="sidebar-user"><span className="user-avatar">{initials || 'GU'}</span><span className="user-info"><strong>{user.nombre} {user.apellido}</strong><small>{user.correo}</small></span><button onClick={() => setLogoutConfirmationOpen(true)} title="Cerrar sesión" aria-label="Cerrar sesión"><Icon name="logout" /></button></div></aside><section className="dashboard-content"><header className="dashboard-header"><div className="header-title-wrap"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button><div><span className="page-kicker">{activeSection === 'dashboard' ? 'PANEL PRINCIPAL' : 'GESTIÓN'}</span><h1>{activeSection === 'dashboard' ? `Buenos días, ${user.nombre}` : sectionTitles[activeSection]}</h1><p className="current-date">{formatLongDate(selectedDate)}</p></div></div><div className="header-actions">{businesses.length > 1 && <select className="business-selector" value={selectedBusinessId} onChange={(event) => setSelectedBusinessId(event.target.value)}>{businesses.map((business) => <option key={business.id} value={business.id}>{business.nombre}</option>)}</select>}<div className="notification-wrap"><button className="notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Icon name="bell" /><span /></button>{notificationsOpen && <div className="notification-popover"><strong>Notificaciones</strong><p>Tienes {dayAppointments.filter((item) => item.status === 'pending').length} citas pendientes de confirmar.</p><button onClick={() => { selectSection('appointments'); setNotificationsOpen(false) }}>Revisar citas</button></div>}</div><button className="new-appointment" onClick={() => openNewAppointment()} disabled={!selectedBusinessId || customers.length === 0 || professionals.length === 0 || services.length === 0}><Icon name="plus" />Nueva cita</button></div></header>{renderMainContent()}</section>{modalAppointment && <AppointmentModal appointment={modalAppointment} branches={branches} customers={customers} professionals={professionals} services={services} saving={savingAppointment} error={modalError} onClose={() => setModalAppointment(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}{modalEmployee && <EmployeeModal employee={modalEmployee} branches={branches} saving={savingEmployee} error={employeeModalError} onClose={() => setModalEmployee(null)} onSave={saveEmployee} />}{modalClient && <ClientModal client={modalClient} saving={savingClient} error={clientModalError} onClose={() => setModalClient(null)} onSave={saveClient} />}{modalService && <ServiceModal service={modalService} saving={savingService} error={serviceModalError} onClose={() => setModalService(null)} onSave={saveService} />}{logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={onLogout} />}</main>
 }
 
 export default Dashboard

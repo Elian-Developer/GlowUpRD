@@ -3,15 +3,50 @@ import {
   cerrarSesion,
   guardarSesion,
   iniciarSesion,
+  iniciarSesionConGoogle,
   obtenerSesion,
-  registrarUsuario,
+  registrarNegocioYPropietario,
+  restablecerPassword,
+  solicitarRestablecimiento,
 } from './services/authService'
 import glowUpLogo from './assets/glowup-rd-logo.png'
 import Dashboard from './components/Dashboard'
+import GoogleSignInButton from './components/GoogleSignInButton'
 import './App.css'
 
 const initialLogin = { correo: '', password: '' }
-const initialRegister = { nombre: '', apellido: '', correo: '', password: '' }
+const initialRegister = {
+  nombreNegocio: '',
+  tipoNegocio: 'salon',
+  direccion: '',
+  ciudad: '',
+  provincia: '',
+  nombre: '',
+  apellido: '',
+  correo: '',
+  password: '',
+}
+
+const tiposNegocio = [
+  ['salon', 'Salón'],
+  ['barbershop', 'Barbería'],
+  ['spa', 'Spa'],
+  ['mixed', 'Mixto'],
+]
+
+function buildRegistrarNegocioPayload(data) {
+  return {
+    nombre: data.nombreNegocio.trim(),
+    tipoNegocio: data.tipoNegocio,
+    direccion: data.direccion.trim(),
+    ciudad: data.ciudad.trim(),
+    provincia: data.provincia.trim(),
+    nombrePropietario: data.nombre.trim(),
+    apellidoPropietario: data.apellido.trim(),
+    correoPropietario: data.correo.trim(),
+    password: data.password,
+  }
+}
 
 function EyeIcon({ hidden }) {
   return hidden ? (
@@ -30,19 +65,126 @@ function ArrowIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
 }
 
-function GoogleIcon() {
+function SparkIcon() {
+  return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2c.7 8.1 5.9 13.3 14 14-8.1.7-13.3 5.9-14 14-.7-8.1-5.9-13.3-14-14C10.1 15.3 15.3 10.1 16 2z" /></svg>
+}
+
+function ForgotPasswordForm({ onBack }) {
+  const [correo, setCorreo] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+
+  async function submit(event) {
+    event.preventDefault()
+    setLoading(true)
+    setFeedback(null)
+    try {
+      await solicitarRestablecimiento(correo.trim())
+      setFeedback({ type: 'success', message: 'Si el correo existe, te enviamos un enlace para restablecer tu contraseña.' })
+    } catch (error) {
+      setFeedback({ type: 'error', message: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="#4285f4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 01-2 3v2.5h3.3c1.9-1.8 2.9-4.4 2.9-7.4z" />
-      <path fill="#34a853" d="M12 22c2.7 0 5-.9 6.7-2.4l-3.3-2.5c-.9.6-2.1 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3v2.6A10 10 0 0012 22z" />
-      <path fill="#fbbc05" d="M6.4 14a6 6 0 010-3.9V7.4H3a10 10 0 000 9.2L6.4 14z" />
-      <path fill="#ea4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0012 2a10 10 0 00-9 5.4L6.4 10c.8-2.4 3-4.1 5.6-4.1z" />
-    </svg>
+    <form onSubmit={submit}>
+      <label className="field">
+        <span>Correo electrónico</span>
+        <input type="email" value={correo} onChange={(event) => setCorreo(event.target.value)} placeholder="nombre@correo.com" maxLength="255" required />
+      </label>
+
+      {feedback && <div className={`feedback ${feedback.type}`} role="alert"><span>{feedback.type === 'success' ? '✓' : '!'}</span>{feedback.message}</div>}
+
+      <button className="primary-button" type="submit" disabled={loading}>
+        <span>{loading ? 'Enviando...' : 'Enviar enlace'}</span>
+        {!loading && <ArrowIcon />}
+      </button>
+      <button className="text-button" type="button" onClick={onBack}>Volver a iniciar sesión</button>
+    </form>
   )
 }
 
-function SparkIcon() {
-  return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2c.7 8.1 5.9 13.3 14 14-8.1.7-13.3 5.9-14 14-.7-8.1-5.9-13.3-14-14C10.1 15.3 15.3 10.1 16 2z" /></svg>
+function ResetPasswordScreen({ token }) {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+  const [done, setDone] = useState(false)
+
+  async function submit(event) {
+    event.preventDefault()
+    if (password !== confirmPassword) {
+      setFeedback({ type: 'error', message: 'Las contraseñas no coinciden.' })
+      return
+    }
+    setLoading(true)
+    setFeedback(null)
+    try {
+      await restablecerPassword(token, password)
+      setDone(true)
+    } catch (error) {
+      setFeedback({ type: 'error', message: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
+      <section className="auth-shell" aria-label="Restablecer contraseña">
+        <aside className="brand-panel">
+          <header className="brand-header">
+            <a className="brand-logo-link" href="/" aria-label="GlowUp RD inicio">
+              <img className="brand-logo" src={glowUpLogo} alt="GlowUp RD" />
+            </a>
+          </header>
+          <div className="brand-copy">
+            <h1>Tu negocio de belleza,<br /><span>elevado al siguiente nivel.</span></h1>
+          </div>
+        </aside>
+        <section className="form-panel">
+          <div className="form-content">
+            <div className="mobile-brand"><img src={glowUpLogo} alt="GlowUp RD" /></div>
+            {done ? (
+              <div className="welcome-state">
+                <div className="welcome-icon"><SparkIcon /></div>
+                <span className="eyebrow">LISTO</span>
+                <h2>Tu contraseña fue actualizada.</h2>
+                <p>Ya puedes iniciar sesión con tu nueva contraseña.</p>
+                <a className="primary-button" href="/">Ir a iniciar sesión</a>
+              </div>
+            ) : (
+              <>
+                <div className="form-heading">
+                  <span className="eyebrow">RESTABLECER CONTRASEÑA</span>
+                  <h2>Crea una nueva contraseña.</h2>
+                </div>
+                <form onSubmit={submit}>
+                  <label className="field">
+                    <span>Nueva contraseña</span>
+                    <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength="8" maxLength="100" placeholder="Mínimo 8 caracteres" required />
+                  </label>
+                  <label className="field">
+                    <span>Confirmar contraseña</span>
+                    <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength="8" maxLength="100" placeholder="Repite tu contraseña" required />
+                  </label>
+                  {feedback && <div className={`feedback ${feedback.type}`} role="alert"><span>!</span>{feedback.message}</div>}
+                  <button className="primary-button" type="submit" disabled={loading}>
+                    <span>{loading ? 'Guardando...' : 'Guardar nueva contraseña'}</span>
+                    {!loading && <ArrowIcon />}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </section>
+      </section>
+    </main>
+  )
 }
 
 function App() {
@@ -54,8 +196,10 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState(null)
   const [session, setSession] = useState(() => obtenerSesion())
+  const [resetToken] = useState(() => new URLSearchParams(window.location.search).get('token'))
 
   const isLogin = mode === 'login'
+  const isForgot = mode === 'forgot'
   const formData = isLogin ? loginData : registerData
 
   function changeMode(nextMode) {
@@ -77,25 +221,25 @@ function App() {
     setFeedback(null)
 
     try {
-      if (isLogin) {
-        const response = await iniciarSesion({
-          correo: loginData.correo.trim(),
-          password: loginData.password,
-        })
-        guardarSesion(response, rememberMe)
-        setSession(response)
-      } else {
-        await registrarUsuario({
-          nombre: registerData.nombre.trim(),
-          apellido: registerData.apellido.trim(),
-          correo: registerData.correo.trim(),
-          password: registerData.password,
-        })
-        setLoginData({ correo: registerData.correo, password: '' })
-        setRegisterData(initialRegister)
-        setMode('login')
-        setFeedback({ type: 'success', message: 'Tu cuenta fue creada. Ya puedes iniciar sesión.' })
-      }
+      const response = isLogin
+        ? await iniciarSesion({ correo: loginData.correo.trim(), password: loginData.password })
+        : await registrarNegocioYPropietario(buildRegistrarNegocioPayload(registerData))
+      guardarSesion(response, rememberMe)
+      setSession(response)
+    } catch (error) {
+      setFeedback({ type: 'error', message: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGoogleCredential(credential) {
+    setLoading(true)
+    setFeedback(null)
+    try {
+      const response = await iniciarSesionConGoogle(credential)
+      guardarSesion(response, rememberMe)
+      setSession(response)
     } catch (error) {
       setFeedback({ type: 'error', message: error.message })
     } finally {
@@ -108,6 +252,10 @@ function App() {
     setSession(null)
     setLoginData(initialLogin)
     setFeedback(null)
+  }
+
+  if (resetToken) {
+    return <ResetPasswordScreen token={resetToken} />
   }
 
   if (session) {
@@ -149,29 +297,70 @@ function App() {
                 <img src={glowUpLogo} alt="GlowUp RD" />
               </div>
 
+              {isForgot ? (
+                <>
+                  <div className="form-heading">
+                    <span className="eyebrow">RECUPERAR ACCESO</span>
+                    <h2>¿Olvidaste tu contraseña?</h2>
+                    <p>Ingresa tu correo y te enviaremos un enlace para restablecerla.</p>
+                  </div>
+                  <ForgotPasswordForm onBack={() => changeMode('login')} />
+                </>
+              ) : (
+              <>
               <div className="form-heading">
                 <span className="eyebrow">{isLogin ? 'BIENVENIDO DE NUEVO' : 'EMPIEZA TU HISTORIA'}</span>
-                <h2>{isLogin ? 'Qué bueno verte.' : 'Crea tu cuenta.'}</h2>
-                {isLogin && <p>Ingresa tus datos para continuar tu experiencia.</p>}
+                <h2>{isLogin ? 'Qué bueno verte.' : 'Registra tu negocio.'}</h2>
+                <p>{isLogin ? 'Ingresa tus datos para continuar tu experiencia.' : 'Crea el perfil de tu negocio y tu cuenta de propietario en un solo paso.'}</p>
               </div>
 
               <div className="mode-switch" role="tablist" aria-label="Tipo de acceso">
                 <button type="button" role="tab" aria-selected={isLogin} className={isLogin ? 'active' : ''} onClick={() => changeMode('login')}>Iniciar sesión</button>
-                <button type="button" role="tab" aria-selected={!isLogin} className={!isLogin ? 'active' : ''} onClick={() => changeMode('register')}>Crear cuenta</button>
+                <button type="button" role="tab" aria-selected={!isLogin} className={!isLogin ? 'active' : ''} onClick={() => changeMode('register')}>Registrar negocio</button>
               </div>
 
               <form onSubmit={handleSubmit}>
                 {!isLogin && (
-                  <div className="field-row">
+                  <>
                     <label className="field">
-                      <span>Nombre</span>
-                      <input name="nombre" value={formData.nombre} onChange={updateField} placeholder="Tu nombre" autoComplete="given-name" maxLength="100" required />
+                      <span>Nombre del negocio</span>
+                      <input name="nombreNegocio" value={registerData.nombreNegocio} onChange={updateField} placeholder="Ej. Barbería Baronil" maxLength="150" required />
                     </label>
+
                     <label className="field">
-                      <span>Apellido</span>
-                      <input name="apellido" value={formData.apellido} onChange={updateField} placeholder="Tu apellido" autoComplete="family-name" maxLength="100" required />
+                      <span>Tipo de negocio</span>
+                      <select name="tipoNegocio" value={registerData.tipoNegocio} onChange={updateField} required>
+                        {tiposNegocio.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
                     </label>
-                  </div>
+
+                    <label className="field">
+                      <span>Dirección de tu sucursal principal</span>
+                      <input name="direccion" value={registerData.direccion} onChange={updateField} placeholder="Calle, número, sector" maxLength="255" required />
+                    </label>
+
+                    <div className="field-row">
+                      <label className="field">
+                        <span>Ciudad</span>
+                        <input name="ciudad" value={registerData.ciudad} onChange={updateField} placeholder="Ej. Santo Domingo" maxLength="100" required />
+                      </label>
+                      <label className="field">
+                        <span>Provincia</span>
+                        <input name="provincia" value={registerData.provincia} onChange={updateField} placeholder="Ej. Distrito Nacional" maxLength="100" required />
+                      </label>
+                    </div>
+
+                    <div className="field-row">
+                      <label className="field">
+                        <span>Tu nombre</span>
+                        <input name="nombre" value={formData.nombre} onChange={updateField} placeholder="Tu nombre" autoComplete="given-name" maxLength="100" required />
+                      </label>
+                      <label className="field">
+                        <span>Tu apellido</span>
+                        <input name="apellido" value={formData.apellido} onChange={updateField} placeholder="Tu apellido" autoComplete="family-name" maxLength="100" required />
+                      </label>
+                    </div>
+                  </>
                 )}
 
                 <label className="field">
@@ -192,23 +381,29 @@ function App() {
                 {isLogin && (
                   <div className="form-options">
                     <label className="checkbox"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span />Recordarme</label>
-                    <button className="text-button" type="button">¿Olvidaste tu contraseña?</button>
+                    <button className="text-button" type="button" onClick={() => changeMode('forgot')}>¿Olvidaste tu contraseña?</button>
                   </div>
                 )}
 
                 {feedback && <div className={`feedback ${feedback.type}`} role="alert"><span>{feedback.type === 'success' ? '✓' : '!'}</span>{feedback.message}</div>}
 
                 <button className="primary-button" type="submit" disabled={loading}>
-                  <span>{loading ? 'Procesando...' : isLogin ? 'Entrar a GlowUp' : 'Crear mi cuenta'}</span>
+                  <span>{loading ? 'Procesando...' : isLogin ? 'Entrar a GlowUp' : 'Registrar mi negocio'}</span>
                   {!loading && <ArrowIcon />}
                 </button>
               </form>
 
-              <div className="auth-divider"><span>o continúa con</span></div>
-              <button className="google-button" type="button">
-                <GoogleIcon />
-                {isLogin ? 'Iniciar sesión con Google' : 'Registrarme con Google'}
-              </button>
+              {isLogin && (
+                <>
+                  <div className="auth-divider"><span>o continúa con</span></div>
+                  <GoogleSignInButton
+                    onCredential={handleGoogleCredential}
+                    onError={(message) => setFeedback({ type: 'error', message })}
+                  />
+                </>
+              )}
+              </>
+              )}
 
             </div>
           )}

@@ -22,24 +22,6 @@ public sealed class UsuarioRepository : IUsuarioRepository
         CancellationToken cancellationToken = default) =>
         _context.Usuarios.FirstOrDefaultAsync(usuario => usuario.Correo == correo, cancellationToken);
 
-    public async Task<List<Usuario>> BuscarAsync(
-        string? termino,
-        CancellationToken cancellationToken = default)
-    {
-        var consulta = _context.Usuarios.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(termino))
-        {
-            var filtro = termino.Trim();
-            consulta = consulta.Where(usuario =>
-                usuario.Nombre.Contains(filtro) ||
-                usuario.Apellido.Contains(filtro) ||
-                usuario.Correo.Contains(filtro));
-        }
-
-        return await consulta.OrderBy(usuario => usuario.Nombre).ToListAsync(cancellationToken);
-    }
-
     public Task AgregarAsync(Usuario usuario, CancellationToken cancellationToken = default) =>
         _context.Usuarios.AddAsync(usuario, cancellationToken).AsTask();
 

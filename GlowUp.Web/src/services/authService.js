@@ -1,4 +1,6 @@
-import { apiRequest, clearStoredSession, readStoredSession, SESSION_KEY } from './apiClient'
+import { clearStoredSession, readStoredSession, SESSION_KEY } from './apiClient'
+import { registrarNegocio } from './negociosApi'
+import { apiRequest } from './apiClient'
 
 const AUTH_MODE = import.meta.env.VITE_AUTH_MODE ?? 'local'
 const DEMO_USERS_KEY = 'glowup_demo_users'
@@ -28,6 +30,14 @@ function toPublicUser(user) {
   }
 }
 
+function crearLoginDemo(user) {
+  return {
+    token: `demo-${crypto.randomUUID()}`,
+    expiraEnUtc: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    usuario: toPublicUser(user),
+  }
+}
+
 async function iniciarSesionLocal(credentials) {
   const correo = credentials.correo.trim().toLowerCase()
   const user = readDemoUsers().find((item) => item.correo === correo)
@@ -36,16 +46,12 @@ async function iniciarSesionLocal(credentials) {
     throw new Error('El correo o la contraseña no son correctos.')
   }
 
-  return {
-    token: `demo-${crypto.randomUUID()}`,
-    expiraEnUtc: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    usuario: toPublicUser(user),
-  }
+  return crearLoginDemo(user)
 }
 
-async function registrarUsuarioLocal(user) {
+async function registrarNegocioLocal(payload) {
   const users = readDemoUsers()
-  const correo = user.correo.trim().toLowerCase()
+  const correo = payload.correoPropietario.trim().toLowerCase()
 
   if (users.some((item) => item.correo === correo)) {
     throw new Error('El correo ya se encuentra registrado en este navegador.')
@@ -55,17 +61,17 @@ async function registrarUsuarioLocal(user) {
   const salt = Array.from(saltBytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
   const newUser = {
     id: crypto.randomUUID(),
-    nombre: user.nombre.trim(),
-    apellido: user.apellido.trim(),
+    nombre: payload.nombrePropietario.trim(),
+    apellido: payload.apellidoPropietario.trim(),
     correo,
     activo: true,
     fechaCreacion: new Date().toISOString(),
     salt,
-    passwordHash: await hashPassword(user.password, salt),
+    passwordHash: await hashPassword(payload.password, salt),
   }
 
   localStorage.setItem(DEMO_USERS_KEY, JSON.stringify([...users, newUser]))
-  return toPublicUser(newUser)
+  return crearLoginDemo(newUser)
 }
 
 export function iniciarSesion(credentials) {
@@ -77,12 +83,36 @@ export function iniciarSesion(credentials) {
   })
 }
 
-export function registrarUsuario(user) {
-  if (AUTH_MODE === 'local') return registrarUsuarioLocal(user)
+export function registrarNegocioYPropietario(payload) {
+  if (AUTH_MODE === 'local') return registrarNegocioLocal(payload)
 
-  return apiRequest('/api/autenticacion/registrar', {
+  return registrarNegocio(payload)
+}
+
+export function solicitarRestablecimiento(correo) {
+  if (AUTH_MODE === 'local') return Promise.resolve()
+
+  return apiRequest('/api/autenticacion/olvide-password', {
     method: 'POST',
-    body: JSON.stringify(user),
+    body: JSON.stringify({ correo }),
+  })
+}
+
+export function restablecerPassword(token, nuevaPassword) {
+  return apiRequest('/api/autenticacion/restablecer-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, nuevaPassword }),
+  })
+}
+
+export function iniciarSesionConGoogle(credentialToken) {
+  if (AUTH_MODE === 'local') {
+    return Promise.reject(new Error('El inicio de sesión con Google no está disponible en el modo de demostración.'))
+  }
+
+  return apiRequest('/api/autenticacion/google', {
+    method: 'POST',
+    body: JSON.stringify({ credentialToken }),
   })
 }
 

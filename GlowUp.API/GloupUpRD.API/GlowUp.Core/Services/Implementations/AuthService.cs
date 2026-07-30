@@ -1,13 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using GloupUpRD.API.DTOs.Autenticacion;
 using GloupUpRD.API.Models;
 using GloupUpRD.API.Repositories.Interfaces;
 using GloupUpRD.API.Services.Interfaces;
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
 
 namespace GloupUpRD.API.Services.Implementations;
 
@@ -15,42 +13,22 @@ public sealed class AuthService : IAuthService
 {
     private readonly IUsuarioRepository _usuarios;
     private readonly IPasswordHasher<Usuario> _passwordHasher;
+    private readonly ITokenService _tokenService;
+    private readonly IEmailSender _emailSender;
     private readonly IConfiguration _configuration;
 
     public AuthService(
         IUsuarioRepository usuarios,
         IPasswordHasher<Usuario> passwordHasher,
+        ITokenService tokenService,
+        IEmailSender emailSender,
         IConfiguration configuration)
     {
         _usuarios = usuarios;
         _passwordHasher = passwordHasher;
+        _tokenService = tokenService;
+        _emailSender = emailSender;
         _configuration = configuration;
-    }
-
-    public async Task<UsuarioResponse?> RegistrarAsync(
-        RegistrarUsuarioRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var correo = NormalizarCorreo(request.Correo);
-        if (await _usuarios.ObtenerPorCorreoAsync(correo, cancellationToken) is not null)
-        {
-            return null;
-        }
-
-        var usuario = new Usuario
-        {
-            Nombre = request.Nombre.Trim(),
-            Apellido = request.Apellido.Trim(),
-            Correo = correo,
-            Estado = "active",
-            CreadoEn = DateTime.UtcNow
-        };
-
-        usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, request.Password);
-        await _usuarios.AgregarAsync(usuario, cancellationToken);
-        await _usuarios.GuardarCambiosAsync(cancellationToken);
-
-        return Mapear(usuario);
     }
 
     public async Task<LoginResponse?> IniciarSesionAsync(
@@ -83,7 +61,7 @@ public sealed class AuthService : IAuthService
         usuario.UltimoLoginEn = DateTime.UtcNow;
         await _usuarios.GuardarCambiosAsync(cancellationToken);
 
-        return CrearToken(usuario);
+        return _tokenService.CrearToken(usuario);
     }
 
     public async Task<UsuarioResponse?> ObtenerPorIdAsync(
@@ -93,11 +71,6 @@ public sealed class AuthService : IAuthService
         var usuario = await _usuarios.ObtenerPorIdAsync(id, cancellationToken);
         return usuario is null ? null : Mapear(usuario);
     }
-
-    public async Task<IReadOnlyList<UsuarioResponse>> BuscarAsync(
-        string? termino,
-        CancellationToken cancellationToken = default) =>
-        (await _usuarios.BuscarAsync(termino, cancellationToken)).Select(Mapear).ToList();
 
     public async Task<ActualizarUsuarioResultado> ActualizarAsync(
         long id,
@@ -142,31 +115,85 @@ public sealed class AuthService : IAuthService
         return true;
     }
 
-    private LoginResponse CrearToken(Usuario usuario)
+    public async Task OlvidePasswordAsync(
+        OlvidePasswordRequest request,
+        CancellationToken cancellationToken = default)
     {
-        var key = _configuration["Jwt:Key"]!;
-        var expirationMinutes = _configuration.GetValue("Jwt:ExpirationMinutes", 60);
-        var expiration = DateTime.UtcNow.AddMinutes(expirationMinutes);
-        var claims = new[]
+        var usuario = await _usuarios.ObtenerPorCorreoAsync(NormalizarCorreo(request.Correo), cancellationToken);
+        if (usuario is null || usuario.Estado != "active")
         {
-            new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, usuario.Correo),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-        var credentials = new SigningCredentials(
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
-            SecurityAlgorithms.HmacSha256);
-        var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
-            claims: claims,
-            expires: expiration,
-            signingCredentials: credentials);
+            // No revelamos si el correo existe o no.
+            return;
+        }
 
-        return new LoginResponse(
-            new JwtSecurityTokenHandler().WriteToken(token),
-            expiration,
-            Mapear(usuario));
+        var token = _tokenService.CrearTokenRestablecimiento(usuario);
+        await _emailSender.EnviarRestablecimientoPasswordAsync(usuario.Correo, token, cancellationToken);
+    }
+
+    public async Task<MaintenanceResult<bool>> RestablecerPasswordAsync(
+        RestablecerPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var principal = _tokenService.ValidarToken(request.Token);
+        if (principal is null || principal.FindFirst("purpose")?.Value != TokenService.PropositoRestablecimiento)
+        {
+            return MaintenanceResult<bool>.Fail(MaintenanceStatus.Invalid, "El enlace no es válido o expiró.");
+        }
+
+        if (!long.TryParse(principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var usuarioId))
+        {
+            return MaintenanceResult<bool>.Fail(MaintenanceStatus.Invalid, "El enlace no es válido.");
+        }
+
+        var usuario = await _usuarios.ObtenerPorIdAsync(usuarioId, cancellationToken);
+        if (usuario is null)
+        {
+            return MaintenanceResult<bool>.Fail(MaintenanceStatus.Invalid, "El enlace no es válido.");
+        }
+
+        var sello = principal.FindFirst("pwd_stamp")?.Value;
+        if (sello != TokenService.SelloContrasena(usuario.ContrasenaHash))
+        {
+            return MaintenanceResult<bool>.Fail(MaintenanceStatus.Invalid, "El enlace ya fue utilizado o tu contraseña cambió después de solicitarlo.");
+        }
+
+        usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, request.NuevaPassword);
+        usuario.ActualizadoEn = DateTime.UtcNow;
+        await _usuarios.GuardarCambiosAsync(cancellationToken);
+        return MaintenanceResult<bool>.Ok(true);
+    }
+
+    public async Task<MaintenanceResult<LoginResponse>> IniciarSesionConGoogleAsync(
+        GoogleLoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var clientId = _configuration["Google:ClientId"];
+            var settings = new GoogleJsonWebSignature.ValidationSettings();
+            if (!string.IsNullOrWhiteSpace(clientId))
+            {
+                settings.Audience = new[] { clientId };
+            }
+
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.CredentialToken, settings);
+        }
+        catch (InvalidJwtException)
+        {
+            return MaintenanceResult<LoginResponse>.Fail(MaintenanceStatus.Invalid, "No pudimos verificar tu cuenta de Google.");
+        }
+
+        // No se crea cuenta nueva: solo permite iniciar sesión a usuarios que ya pertenecen a un negocio.
+        var usuario = await _usuarios.ObtenerPorCorreoAsync(NormalizarCorreo(payload.Email), cancellationToken);
+        if (usuario is null || usuario.Estado != "active")
+        {
+            return MaintenanceResult<LoginResponse>.Fail(MaintenanceStatus.Forbidden, "No existe una cuenta con este correo. Pídele acceso al dueño de tu negocio.");
+        }
+
+        usuario.UltimoLoginEn = DateTime.UtcNow;
+        await _usuarios.GuardarCambiosAsync(cancellationToken);
+        return MaintenanceResult<LoginResponse>.Ok(_tokenService.CrearToken(usuario));
     }
 
     private static UsuarioResponse Mapear(Usuario usuario) => new(
@@ -178,5 +205,4 @@ public sealed class AuthService : IAuthService
         usuario.CreadoEn);
 
     private static string NormalizarCorreo(string correo) => correo.Trim().ToLowerInvariant();
-
 }

@@ -284,6 +284,14 @@
 .directory-card strong { font-size: 0.72rem; }
 .directory-card p { overflow: hidden; margin: 5px 0; color: #778174; font-size: 0.61rem; text-overflow: ellipsis; white-space: nowrap; }
 .directory-card small { color: #55913b; font-size: 0.56rem; font-weight: 700; }
+.directory-card-button { width: 100%; background: #fff; font: inherit; text-align: left; cursor: pointer; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.directory-card-button:hover { border-color: #b7c9b0; box-shadow: 0 4px 14px rgba(20, 30, 15, 0.06); }
+
+.checkbox { display: flex; align-items: center; gap: 8px; color: #56605a; font-size: 0.72rem; cursor: pointer; }
+.checkbox input { position: absolute; opacity: 0; }
+.checkbox span { width: 15px; height: 15px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #d8dfd5; border-radius: 4px; background: #fff; }
+.checkbox input:checked + span { border-color: #287f86; background: #287f86; }
+.checkbox input:checked + span::after { content: '✓'; color: #fff; font-size: 0.65rem; }
 
 .report-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 .report-summary article { display: grid; border: 1px solid var(--dash-border); border-radius: 15px; padding: 19px; background: #fff; }
