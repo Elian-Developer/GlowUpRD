@@ -1,0 +1,28 @@
+@GlowUpRD.API_HostAddress = http://localhost:5297
+@Token = REEMPLAZAR_CON_TOKEN
+
+POST {{GlowUpRD.API_HostAddress}}/api/autenticacion/registrar
+Content-Type: application/json
+
+{
+  "nombre": "Usuario",
+  "apellido": "Prueba",
+  "correo": "usuario@ejemplo.com",
+  "password": "ClaveSegura123"
+}
+
+###
+
+POST {{GlowUpRD.API_HostAddress}}/api/autenticacion/iniciar-sesion
+Content-Type: application/json
+
+{
+  "correo": "usuario@ejemplo.com",
+  "password": "ClaveSegura123"
+}
+
+###
+
+GET {{GlowUpRD.API_HostAddress}}/api/autenticacion/usuarios?termino=usuario
+Authorization: Bearer {{Token}}
+Accept: application/json

@@ -27,13 +27,19 @@ VITE_API_URL=
 VITE_API_PROXY_TARGET=http://localhost:5297
 ```
 
-Inicia la API desde `GlowUp.API` y luego ejecuta el frontend:
+Inicia la API desde la raíz del repositorio y luego ejecuta el frontend:
 
 ```bash
+cd ..
+dotnet restore .\GlowUp.API\GlowUp.API.sln
+dotnet run --project .\GlowUp.API\GlowUp.Api\GlowUpRD.API.csproj --launch-profile http
+
+cd .\GlowUp.Web
 npm install
 npm run dev
 ```
 
 Vite publica la aplicacion en `http://localhost:5173` y redirige `/api` hacia
-la API local. Puedes cambiar el destino con `VITE_API_PROXY_TARGET`. Para un
-despliegue con backend publico, configura `VITE_API_URL` con su URL HTTPS.
+la API local. Puedes cambiar el destino con `VITE_API_PROXY_TARGET`. La guía
+completa para conectar Neon y configurar los User Secrets está en
+[`GlowUp.API/README.md`](../GlowUp.API/README.md).

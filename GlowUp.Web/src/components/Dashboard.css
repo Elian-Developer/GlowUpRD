@@ -255,6 +255,10 @@
 .search-box input { width: 100%; height: 40px; border: 1px solid #dfe6db; border-radius: 10px; outline: 0; padding: 0 12px 0 37px; font-size: 0.69rem; }
 .search-box input:focus { border-color: #8acb68; }
 .data-toolbar select { width: auto; min-width: 155px; height: 40px; }
+.data-toolbar .date-filter { width: 154px; height: 40px; border: 1px solid var(--dash-border); border-radius: 10px; outline: 0; padding: 0 11px; color: #263044; background: #fff; font: inherit; font-size: 0.69rem; font-weight: 700; cursor: pointer; transition: border-color 160ms ease, box-shadow 160ms ease; }
+.data-toolbar .date-filter:hover { border-color: #a7b7c0; }
+.data-toolbar .date-filter:focus { border-color: var(--dash-green); box-shadow: 0 0 0 3px rgba(49, 142, 148, 0.12); }
+.data-toolbar .date-filter::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.65; }
 .data-toolbar .new-appointment { margin-left: auto; }
 .responsive-table { overflow-x: auto; }
 .responsive-table table { width: 100%; min-width: 780px; border-collapse: collapse; }
@@ -358,6 +362,7 @@
   .data-toolbar { align-items: stretch; flex-direction: column; }
   .search-box { min-width: 0; width: 100%; flex: none; }
   .data-toolbar select { width: 100%; }
+  .data-toolbar .date-filter { width: 100%; }
   .data-toolbar .new-appointment { width: 100%; margin: 0; font-size: 0.68rem; }
   .directory-grid, .report-summary { grid-template-columns: 1fr; }
   .modal-field-row { grid-template-columns: 1fr; }
