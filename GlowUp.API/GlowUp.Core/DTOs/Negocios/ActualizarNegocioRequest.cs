@@ -5,8 +5,29 @@ namespace GlowUpRD.API.DTOs.Negocios;
 public sealed class ActualizarNegocioRequest
 {
     [Required, MaxLength(150)] public string Nombre { get; set; } = null!;
+    [MaxLength(30)] public string? Rnc { get; set; }
     [MaxLength(30)] public string? Telefono { get; set; }
     [EmailAddress, MaxLength(150)] public string? Correo { get; set; }
     [MaxLength(2000)] public string? Descripcion { get; set; }
     [MaxLength(500)] public string? LogoUrl { get; set; }
+    [Required] public ActualizarSucursalPrincipalRequest SucursalPrincipal { get; set; } = null!;
+    [Required, MinLength(7)] public List<ActualizarHorarioNegocioRequest> Horarios { get; set; } = [];
+}
+
+public sealed class ActualizarSucursalPrincipalRequest
+{
+    [Required, MaxLength(150)] public string Nombre { get; set; } = null!;
+    [MaxLength(30)] public string? Telefono { get; set; }
+    [Required, MaxLength(250)] public string Direccion { get; set; } = null!;
+    [Required, MaxLength(100)] public string Ciudad { get; set; } = null!;
+    [Required, MaxLength(100)] public string Provincia { get; set; } = null!;
+    [Required, MaxLength(100)] public string Pais { get; set; } = null!;
+}
+
+public sealed class ActualizarHorarioNegocioRequest
+{
+    [Range(0, 6)] public short DiaSemana { get; set; }
+    public TimeOnly? AbreA { get; set; }
+    public TimeOnly? CierraA { get; set; }
+    public bool Cerrado { get; set; }
 }

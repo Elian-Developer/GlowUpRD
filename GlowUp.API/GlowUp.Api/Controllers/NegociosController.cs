@@ -34,7 +34,7 @@ public sealed class NegociosController : ControllerBase
 
     [Authorize]
     [HttpPut("{id:long}")]
-    public async Task<ActionResult<NegocioDetalleResponse>> Actualizar(long id, ActualizarNegocioRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<NegocioDetalleResponse>> Actualizar(long id, [FromBody] ActualizarNegocioRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
         return Convert(await _service.ActualizarAsync(userId, id, request, cancellationToken));

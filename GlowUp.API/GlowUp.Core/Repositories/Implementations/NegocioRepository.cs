@@ -19,6 +19,18 @@ public sealed class NegocioRepository : INegocioRepository
     public Task<Negocio?> ObtenerParaEditarAsync(long id, CancellationToken cancellationToken = default) =>
         _context.Negocios.FirstOrDefaultAsync(negocio => negocio.Id == id, cancellationToken);
 
+    public Task<Negocio?> ObtenerPerfilAsync(long id, CancellationToken cancellationToken = default) =>
+        _context.Negocios.AsNoTracking()
+            .Include(negocio => negocio.Sucursales)
+            .ThenInclude(sucursal => sucursal.HorariosNegocios)
+            .FirstOrDefaultAsync(negocio => negocio.Id == id, cancellationToken);
+
+    public Task<Negocio?> ObtenerPerfilParaEditarAsync(long id, CancellationToken cancellationToken = default) =>
+        _context.Negocios
+            .Include(negocio => negocio.Sucursales)
+            .ThenInclude(sucursal => sucursal.HorariosNegocios)
+            .FirstOrDefaultAsync(negocio => negocio.Id == id, cancellationToken);
+
     public Task<bool> UsuarioEsPropietarioAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default) =>
         _context.Negocios.AnyAsync(negocio => negocio.Id == negocioId && negocio.Estado == "active" && negocio.UsuarioPropietarioId == usuarioId, cancellationToken);
 

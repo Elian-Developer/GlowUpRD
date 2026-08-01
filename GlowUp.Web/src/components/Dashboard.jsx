@@ -13,6 +13,7 @@ import { actualizarEmpleado, buscarEmpleados, crearEmpleado } from '../services/
 import { actualizarCliente, buscarClientes, crearCliente } from '../services/clientesApi'
 import { actualizarServicio, buscarServicios, crearServicio } from '../services/serviciosApi'
 import { obtenerReporte } from '../services/reportesApi'
+import { actualizarNegocio, obtenerNegocio } from '../services/negociosApi'
 import AppointmentModal from './AppointmentModal'
 import EmployeeModal from './EmployeeModal'
 import ClientModal from './ClientModal'
@@ -25,9 +26,9 @@ const navigation = [
   ['reports', 'Reportes'], ['settings', 'Configuración'],
 ]
 
-const hours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
 const tones = ['mint', 'blue', 'sand', 'violet']
 const sectionTitles = Object.fromEntries(navigation)
+const CALENDAR_SLOT_MINUTES = 15
 
 function Icon({ name }) {
   const paths = {
@@ -101,6 +102,8 @@ function mapCatalog(catalog) {
       name: item.nombre,
       duration: item.duracionMinutos,
       price: item.precio,
+      bufferBefore: item.minutosAntes ?? 0,
+      bufferAfter: item.minutosDespues ?? 0,
       category: 'Servicio',
     })),
   }
@@ -124,6 +127,8 @@ function mapAppointment(item) {
     time: toTime(item.inicio),
     startsAt: item.inicio,
     duration: (item.servicios ?? []).reduce((sum, detail) => sum + detail.duracionMinutos, 0),
+    bufferBefore: (item.servicios ?? []).reduce((sum, detail) => sum + (detail.minutosAntes ?? 0), 0),
+    bufferAfter: (item.servicios ?? []).reduce((sum, detail) => sum + (detail.minutosDespues ?? 0), 0),
     status: item.estado,
     notes: item.notas ?? '',
     cancellationReason: item.motivoCancelacion,
@@ -236,10 +241,16 @@ function buildServicioPayload(form, businessId) {
   }
 }
 
-function Schedule({ selectedDate, appointments, professionals, customers, services, onChangeDate, onOpenAppointment, expanded = false }) {
+function Schedule({ selectedDate, appointments, professionals, customers, services, horarios, onChangeDate, onOpenAppointment, expanded = false }) {
   const [uiSettings] = useLocalStorage('glowup_ui_settings', { reminders: true, confirmations: true, compactCalendar: false })
   const dayAppointments = appointments.filter((item) => item.date === toDateKey(selectedDate) && item.status !== 'cancelled')
-  const gridStyle = { gridTemplateColumns: `58px repeat(${Math.max(professionals.length, 1)}, minmax(150px, 1fr))` }
+  const schedule = getDaySchedule(horarios, selectedDate)
+  const timeSlots = getTimeSlots(schedule)
+  const rowHeight = uiSettings.compactCalendar ? (expanded ? 40 : 37) : (expanded ? 53 : 45)
+  const gridStyle = {
+    gridTemplateColumns: `58px repeat(${Math.max(professionals.length, 1)}, minmax(150px, 1fr))`,
+    gridTemplateRows: `49px repeat(${timeSlots.length}, ${rowHeight}px)`,
+  }
 
   function openSlot(professionalId, hour) {
     onOpenAppointment({ date: toDateKey(selectedDate), time: hour, professionalId })
@@ -251,27 +262,28 @@ function Schedule({ selectedDate, appointments, professionals, customers, servic
         <div><span className="section-kicker">AGENDA</span><h2>{expanded ? 'Calendario de citas' : 'Calendario de hoy'}</h2><p>{formatLongDate(selectedDate)}</p></div>
         <div className="calendar-controls"><button onClick={() => onChangeDate(addDays(selectedDate, -1))} aria-label="Día anterior">‹</button><button className="today-button" onClick={() => onChangeDate(new Date())}>Hoy</button><button onClick={() => onChangeDate(addDays(selectedDate, 1))} aria-label="Día siguiente">›</button></div>
       </div>
-      {professionals.length === 0 ? <div className="empty-state">No hay profesionales activos para este negocio.</div> : (
+      {professionals.length === 0 ? <div className="empty-state">No hay profesionales activos para este negocio.</div> : !schedule ? <div className="calendar-closed"><strong>El negocio está cerrado este día.</strong><p>Elige otra fecha para consultar o crear una cita.</p></div> : (
         <div className="calendar-scroll">
           <div className="calendar-board" style={gridStyle}>
             <div className="calendar-corner">Hora</div>
             {professionals.map((professional) => <div className="professional-heading" key={professional.id}><span className={`professional-avatar ${professional.tone}`}>{professional.initials}</span>{professional.shortName}</div>)}
-            {hours.map((hour, index) => <div className="time-label" key={hour} style={{ gridRow: index + 2 }}>{hour}</div>)}
-            {hours.flatMap((hour, row) => professionals.map((professional, column) => <button aria-label={`Crear cita con ${professional.name} a las ${hour}`} className="calendar-cell" key={`${professional.id}-${hour}`} style={{ gridColumn: column + 2, gridRow: row + 2 }} onClick={() => openSlot(professional.id, hour)} />))}
+            {timeSlots.map((hour, index) => <div className="time-label" key={hour} style={{ gridRow: index + 2 }}>{hour}</div>)}
+            {timeSlots.flatMap((hour, row) => professionals.map((professional, column) => <button aria-label={`Crear cita con ${professional.name} a las ${hour}`} className="calendar-cell" key={`${professional.id}-${hour}`} style={{ gridColumn: column + 2, gridRow: row + 2 }} onClick={() => openSlot(professional.id, hour)} />))}
             {dayAppointments.map((appointment) => {
               const professionalIndex = professionals.findIndex((item) => item.id === appointment.professionalId)
-              const [hour, minute] = appointment.time.split(':').map(Number)
-              const row = Math.max(2, hour - 8 + 2)
-              const span = Math.max(1, Math.ceil(appointment.duration / 60))
+              const appointmentMinutes = timeToMinutes(appointment.time)
+              const blockedStart = appointmentMinutes - appointment.bufferBefore
+              const row = Math.max(2, Math.floor((blockedStart - schedule.opensAt) / CALENDAR_SLOT_MINUTES) + 2)
+              const span = Math.max(1, Math.ceil((appointment.duration + appointment.bufferBefore + appointment.bufferAfter) / CALENDAR_SLOT_MINUTES))
               const customer = customers.find((item) => item.id === appointment.customerId)
               const service = services.find((item) => item.id === appointment.serviceId)
-              if (professionalIndex < 0 || row > 11) return null
-              return <button className={`appointment-event ${appointment.status}`} key={appointment.id} style={{ gridColumn: professionalIndex + 2, gridRow: `${row} / span ${span}`, '--minute-offset': minute === 30 ? '21px' : '0px' }} onClick={() => onOpenAppointment(appointment)}><strong>{service?.name ?? appointment.serviceName ?? 'Servicio'}</strong><span>{appointment.time}</span><small>{customer?.name ?? appointment.customerName ?? 'Cliente'}</small></button>
+              if (professionalIndex < 0 || appointmentMinutes === null || row > timeSlots.length + 1) return null
+              return <button className={`appointment-event ${appointment.status}`} key={appointment.id} style={{ gridColumn: professionalIndex + 2, gridRow: `${row} / span ${span}` }} onClick={() => onOpenAppointment(appointment)}><strong>{service?.name ?? appointment.serviceName ?? 'Servicio'}</strong><span>{appointment.time}</span><small>{customer?.name ?? appointment.customerName ?? 'Cliente'}{appointment.bufferBefore || appointment.bufferAfter ? ` · Buffer ${appointment.bufferBefore + appointment.bufferAfter} min` : ''}</small></button>
             })}
           </div>
         </div>
       )}
-      <footer className="calendar-legend"><span><i className="confirmed" />Confirmada</span><span><i className="pending" />Pendiente</span><small>Selecciona un espacio libre para crear una cita</small></footer>
+      <footer className="calendar-legend"><span><i className="confirmed" />Confirmada</span><span><i className="pending" />Pendiente</span><span><i className="completed" />Completada</span><span><i className="cancelled" />Cancelada</span><span><i className="no_show" />No asistió</span><small>Selecciona un espacio libre para crear una cita</small></footer>
     </article>
   )
 }
@@ -378,7 +390,58 @@ function ClientsView({ clients, onEdit, onNew }) {
 const diaLabels = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 0: 'Dom' }
 const diaOrden = [1, 2, 3, 4, 5, 6, 0]
 
-function ReportsView({ negocioId }) {
+function formatMoney(value) {
+  return `RD$ ${Number(value ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+}
+
+function timeToMinutes(value) {
+  if (!value) return null
+  const [hour, minute] = value.slice(0, 5).split(':').map(Number)
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null
+}
+
+function minutesToTime(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
+function getDaySchedule(horarios, date) {
+  const schedule = horarios?.find((item) => Number(item.diaSemana) === date.getDay())
+  const opensAt = timeToMinutes(schedule?.abreA)
+  const closesAt = timeToMinutes(schedule?.cierraA)
+  if (!schedule || schedule.cerrado || opensAt === null || closesAt === null || closesAt <= opensAt) return null
+  return { opensAt, closesAt }
+}
+
+function getTimeSlots(schedule) {
+  if (!schedule) return []
+  return Array.from({ length: Math.ceil((schedule.closesAt - schedule.opensAt) / CALENDAR_SLOT_MINUTES) }, (_, index) => minutesToTime(schedule.opensAt + index * CALENDAR_SLOT_MINUTES))
+}
+
+function findNextOpenSlot(horarios, date) {
+  for (let offset = 0; offset < 14; offset += 1) {
+    const candidate = addDays(date, offset)
+    const schedule = getDaySchedule(horarios, candidate)
+    if (schedule) return { date: candidate, time: minutesToTime(schedule.opensAt) }
+  }
+  return null
+}
+
+function ReportLineChart({ data }) {
+  const values = data.map((item) => Number(item.ingresos ?? 0))
+  const max = Math.max(...values, 1)
+  const width = 640
+  const height = 210
+  const points = values.map((value, index) => `${(index / Math.max(values.length - 1, 1)) * width},${height - (value / max) * 170 - 18}`).join(' ')
+  return <div className="report-line-chart"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Evolución diaria de ingresos"><path className="report-chart-grid" d={`M0 40H${width}M0 105H${width}M0 170H${width}`} /><polyline className="report-chart-line" points={points} />{values.map((value, index) => { const [x, y] = points.split(' ')[index].split(','); return <circle key={data[index].fecha} className="report-chart-dot" cx={x} cy={y} r="4" /> })}</svg><div className="report-chart-labels">{data.map((item) => <small key={item.fecha}>{new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short' }).format(new Date(`${item.fecha}T12:00:00`))}</small>)}</div></div>
+}
+
+function AgendaHealthMetric({ title, value, description, tone }) {
+  const circumference = 251.2
+  const offset = circumference - Math.min(100, value) / 100 * circumference
+  return <div className="agenda-health-metric"><div className={`agenda-ring ${tone}`}><svg viewBox="0 0 100 100" role="img" aria-label={`${title}: ${value}%`}><circle className="agenda-ring-track" cx="50" cy="50" r="40" /><circle className="agenda-ring-value" cx="50" cy="50" r="40" style={{ strokeDasharray: circumference, strokeDashoffset: offset }} /></svg><strong>{value}%</strong></div><div><strong>{title}</strong><p>{description}</p></div></div>
+}
+
+function ReportData({ negocioId, days }) {
   const [reporte, setReporte] = useState(null)
   const [loadingReporte, setLoadingReporte] = useState(true)
   const [reporteError, setReporteError] = useState(null)
@@ -387,27 +450,76 @@ function ReportsView({ negocioId }) {
     if (!negocioId) return
     let active = true
     const hasta = new Date()
-    const desde = addDays(hasta, -6)
+    const desde = addDays(hasta, -(days - 1))
     obtenerReporte({ negocioId, desde: toDateKey(desde), hasta: toDateKey(hasta) })
       .then((data) => { if (active) setReporte(data) })
       .catch((err) => active && setReporteError(err.message))
       .finally(() => active && setLoadingReporte(false))
     return () => { active = false }
-  }, [negocioId])
+  }, [negocioId, days])
 
   if (loadingReporte) return <section className="empty-panel">Cargando reportes...</section>
   if (reporteError) return <section className="empty-panel error-panel"><h2>No pudimos cargar los reportes.</h2><p>{reporteError}</p></section>
   if (!reporte) return null
 
-  const ocupacionPorDia = Object.fromEntries(reporte.ocupacionSemanal.map((item) => [item.diaSemana, item.porcentaje]))
+  const serviceTotal = reporte.rendimientoServicios.reduce((sum, item) => sum + Number(item.ingresos ?? 0), 0)
+  const serviceGradient = reporte.rendimientoServicios.length
+    ? `conic-gradient(${reporte.rendimientoServicios.map((item, index) => { const colors = ['#2b858c', '#527c96', '#d19b53', '#735c9a', '#789c69']; const start = reporte.rendimientoServicios.slice(0, index).reduce((sum, current) => sum + Number(current.ingresos ?? 0), 0) / Math.max(serviceTotal, 1) * 100; const end = start + Number(item.ingresos ?? 0) / Math.max(serviceTotal, 1) * 100; return `${colors[index % colors.length]} ${start}% ${end}%` }).join(', ')})`
+    : 'conic-gradient(#e5eaed 0 100%)'
+  const maxEmployeeIncome = Math.max(...reporte.rendimientoEmpleados.map((item) => Number(item.ingresos ?? 0)), 1)
+  const metrics = [
+    { title: 'Ingresos realizados', value: formatMoney(reporte.ingresosTotales), note: 'Citas confirmadas y completadas', icon: 'reports', tone: 'soft' },
+    { title: 'Tasa de retención', value: `${reporte.tasaRetencion}%`, note: 'Clientes que regresaron', icon: 'team', tone: 'green' },
+    { title: 'Clientes nuevos', value: reporte.clientesNuevos, note: 'Añadidos en este período', icon: 'customers', tone: 'dark' },
+    { title: 'Ticket promedio', value: formatMoney(reporte.ticketPromedio), note: `${reporte.serviciosAgendados} citas con ingreso`, icon: 'calendar', tone: 'amber' },
+  ]
 
-  return <section className="reports-view"><div className="report-summary"><article><small>Ingresos estimados</small><strong>RD$ {reporte.ingresosTotales.toLocaleString()}</strong><span>Últimos 7 días</span></article><article><small>Tasa de confirmación</small><strong>{reporte.tasaConfirmacion}%</strong><span>Citas confirmadas o completadas</span></article><article><small>Servicios agendados</small><strong>{reporte.serviciosAgendados}</strong><span>En el período visible</span></article></div><article className="chart-card"><div><span className="section-kicker">RENDIMIENTO</span><h2>Ocupación semanal</h2></div><div className="bar-chart">{diaOrden.map((dia) => <div key={dia}><span style={{ height: `${ocupacionPorDia[dia] ?? 0}%` }} /><small>{diaLabels[dia]}</small></div>)}</div></article></section>
+  return <><section className="stats-grid report-kpis">{metrics.map((metric) => <article className="stat-card" key={metric.title}><span className={`stat-icon ${metric.tone}`}><Icon name={metric.icon} /></span><div><small>{metric.title}</small><strong>{metric.value}</strong><p>{metric.note}</p></div></article>)}</section><section className="reports-grid"><article className="chart-card report-trend-card"><div className="report-card-heading"><div><span className="section-kicker">EVOLUCIÓN</span><h2>Ingresos realizados por día</h2></div><strong>{formatMoney(reporte.ingresosTotales)}</strong></div><ReportLineChart data={reporte.evolucionDiaria} /></article><article className="chart-card report-health-card"><div><span className="section-kicker">SALUD DE AGENDA</span><h2>Reservas y cancelaciones</h2></div><div className="agenda-health-list"><AgendaHealthMetric title="Citas no confirmadas" value={reporte.tasaNoConfirmadas ?? 0} description={`${reporte.citasPendientes} de ${reporte.citasTotales} reservas permanecen pendientes.`} tone="teal" /><AgendaHealthMetric title="Tasa de cancelación" value={reporte.tasaCancelacion} description={`${reporte.citasCanceladas} de ${reporte.citasTotales} citas del período.`} tone="coral" /></div></article><article className="chart-card report-staff-card"><div><span className="section-kicker">PERSONAL</span><h2>Rendimiento por ingresos</h2></div><div className="report-staff-list">{reporte.rendimientoEmpleados.map((item) => <div key={item.empleadoId}><div><strong>{item.nombre}</strong><small>{item.citas} citas · {formatMoney(item.ingresos)}</small><small className="employee-occupancy">Ocupación de agenda: {item.ocupacionAgenda ?? 0}%</small></div><span><i style={{ width: `${Number(item.ingresos ?? 0) / maxEmployeeIncome * 100}%` }} /></span></div>)}{reporte.rendimientoEmpleados.length === 0 && <p>Aún no hay ingresos por empleado.</p>}</div></article><article className="chart-card report-services-card"><div><span className="section-kicker">SERVICIOS</span><h2>Ingresos realizados por servicio</h2></div><div className="report-donut-wrap"><div className="report-donut" style={{ background: serviceGradient }}><span>{reporte.rendimientoServicios.length}<small>servicios</small></span></div><div className="report-service-legend">{reporte.rendimientoServicios.map((item, index) => <div key={item.nombre}><i className={`service-tone-${index % 5}`} /><span>{item.nombre}</span><b>{formatMoney(item.ingresos)}</b><small>{item.cantidad} citas con ingreso</small></div>)}{reporte.rendimientoServicios.length === 0 && <p>Sin servicios con ingresos realizados.</p>}</div></div></article></section></>
 }
 
-function SettingsView({ settings, setSettings }) {
+function ReportsView({ negocioId }) {
+  const [days, setDays] = useState(30)
+  return <section className="reports-view"><div className="report-toolbar"><div><span className="section-kicker">ANÁLISIS DEL NEGOCIO</span><p>Ingresos realizados: citas confirmadas y completadas.</p></div><div className="period-selector" aria-label="Período de reportes">{[7, 30, 60].map((option) => <button type="button" key={option} className={days === option ? 'active' : ''} onClick={() => setDays(option)}>Últimos {option} días</button>)}</div></div><ReportData key={`${negocioId}-${days}`} negocioId={negocioId} days={days} /></section>
+}
+
+function BusinessSettingsView({ negocioId, settings, setSettings, onBusinessUpdated }) {
+  const [form, setForm] = useState(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileError, setProfileError] = useState(null)
+  const [profileMessage, setProfileMessage] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    obtenerNegocio(negocioId).then((data) => {
+      if (!active) return
+      const byDay = Object.fromEntries((data.horarios ?? []).map((item) => [item.diaSemana, item]))
+      setForm({ ...data, sucursalPrincipal: data.sucursalPrincipal, horarios: diaOrden.map((dia) => ({ diaSemana: dia, abreA: byDay[dia]?.abreA?.slice(0, 5) ?? '09:00', cierraA: byDay[dia]?.cierraA?.slice(0, 5) ?? '18:00', cerrado: byDay[dia]?.cerrado ?? false })) })
+    }).catch((err) => active && setProfileError(err.message)).finally(() => active && setLoadingProfile(false))
+    return () => { active = false }
+  }, [negocioId])
+
   function toggle(key) { setSettings((current) => ({ ...current, [key]: !current[key] })) }
   const options = [['reminders', 'Recordatorios automáticos', 'Enviar recordatorios antes de cada cita.'], ['confirmations', 'Confirmación de citas', 'Solicitar confirmación al cliente.'], ['compactCalendar', 'Calendario compacto', 'Reducir la altura de los bloques del calendario.']]
-  return <section className="settings-card"><div className="settings-heading"><h2>Preferencias del sistema</h2><p>Estos ajustes se guardan localmente en este navegador.</p></div>{options.map(([key, title, description]) => <div className="setting-row" key={key}><div><strong>{title}</strong><p>{description}</p></div><button className={`toggle-switch ${settings[key] ? 'on' : ''}`} onClick={() => toggle(key)} aria-pressed={settings[key]}><span /></button></div>)}</section>
+  function update(path, value) { setForm((current) => path === 'sucursal' ? { ...current, sucursalPrincipal: { ...current.sucursalPrincipal, [value.name]: value.value } } : { ...current, [path]: value }) }
+  function updateSchedule(day, key, value) { setForm((current) => ({ ...current, horarios: current.horarios.map((item) => item.diaSemana === day ? { ...item, [key]: value } : item) })) }
+  async function save() {
+    setSavingProfile(true); setProfileError(null); setProfileMessage(null)
+    try {
+      const horarios = form.horarios.map((item) => ({
+        ...item,
+        abreA: item.cerrado || !item.abreA ? null : `${item.abreA}:00`,
+        cierraA: item.cerrado || !item.cierraA ? null : `${item.cierraA}:00`,
+      }))
+      const updated = await actualizarNegocio(negocioId, { nombre: form.nombre, rnc: form.rnc || null, telefono: form.telefono || null, correo: form.correo || null, descripcion: form.descripcion || null, logoUrl: form.logoUrl || null, sucursalPrincipal: form.sucursalPrincipal, horarios })
+      setForm((current) => ({ ...current, ...updated, sucursalPrincipal: updated.sucursalPrincipal, horarios: updated.horarios.map((item) => ({ ...item, abreA: item.abreA?.slice(0, 5) ?? '09:00', cierraA: item.cierraA?.slice(0, 5) ?? '18:00' })) }))
+      onBusinessUpdated(updated.horarios ?? [])
+      setProfileMessage('Los cambios se guardaron en tu negocio.')
+    } catch (err) { setProfileError(err.message) } finally { setSavingProfile(false) }
+  }
+  if (loadingProfile) return <section className="empty-panel">Cargando perfil del negocio...</section>
+  if (profileError && !form) return <section className="empty-panel error-panel"><h2>No pudimos cargar el perfil.</h2><p>{profileError}</p></section>
+  return <section className="business-settings"><div className="settings-page-heading"><div><span className="section-kicker">GESTIÓN DEL NEGOCIO</span><h2>Perfil y operación</h2><p>Actualiza la información visible de tu negocio, su sucursal y horarios.</p></div><button type="button" className="save-button" onClick={save} disabled={savingProfile}>{savingProfile ? 'Guardando...' : 'Guardar cambios'}</button></div>{profileMessage && <p className="profile-feedback success">{profileMessage}</p>}{profileError && <p className="profile-feedback error">{profileError}</p>}<div className="business-settings-grid"><article className="settings-card business-profile-card"><div className="settings-heading"><h2>Perfil del negocio</h2><p>Información que identifica tu negocio.</p></div><div className="settings-form"><label>Nombre<input value={form.nombre ?? ''} onChange={(event) => update('nombre', event.target.value)} /></label><label>Tipo de negocio<input value={form.tipoNegocio ?? ''} readOnly /></label><label>RNC<input value={form.rnc ?? ''} onChange={(event) => update('rnc', event.target.value)} placeholder="Opcional" /></label><label>Teléfono<input value={form.telefono ?? ''} onChange={(event) => update('telefono', event.target.value)} /></label><label>Correo<input type="email" value={form.correo ?? ''} onChange={(event) => update('correo', event.target.value)} /></label><label className="settings-field-full">Descripción<textarea value={form.descripcion ?? ''} onChange={(event) => update('descripcion', event.target.value)} rows="4" placeholder="Cuéntales a tus clientes sobre tu negocio." /></label><label className="settings-field-full">URL del logo<input type="url" value={form.logoUrl ?? ''} onChange={(event) => update('logoUrl', event.target.value)} placeholder="https://..." /></label>{form.logoUrl && <div className="logo-preview"><img src={form.logoUrl} alt="Vista previa del logo" onError={(event) => { event.currentTarget.style.display = 'none' }} /></div>}</div></article><article className="settings-card"><div className="settings-heading"><h2>Sucursal principal</h2><p>Dirección y contacto de tu ubicación principal.</p></div><div className="settings-form">{[['nombre', 'Nombre de sucursal'], ['telefono', 'Teléfono'], ['direccion', 'Dirección'], ['ciudad', 'Ciudad'], ['provincia', 'Provincia'], ['pais', 'País']].map(([key, label]) => <label key={key}>{label}<input value={form.sucursalPrincipal?.[key] ?? ''} onChange={(event) => update('sucursal', { name: key, value: event.target.value })} /></label>)}</div></article><article className="settings-card schedule-settings-card"><div className="settings-heading"><h2>Horarios de atención</h2><p>Define cuándo está disponible tu sucursal principal.</p></div><div className="schedule-settings-list">{form.horarios.map((item) => <div key={item.diaSemana}><strong>{diaLabels[item.diaSemana]}</strong><button type="button" className={`toggle-switch ${!item.cerrado ? 'on' : ''}`} onClick={() => updateSchedule(item.diaSemana, 'cerrado', !item.cerrado)} aria-label={`Cambiar disponibilidad de ${diaLabels[item.diaSemana]}`}><span /></button>{item.cerrado ? <em>Cerrado</em> : <><input type="time" value={item.abreA} onChange={(event) => updateSchedule(item.diaSemana, 'abreA', event.target.value)} /><b>—</b><input type="time" value={item.cierraA} onChange={(event) => updateSchedule(item.diaSemana, 'cierraA', event.target.value)} /></>}</div>)}</div></article><article className="settings-card local-preferences-card"><div className="settings-heading"><h2>Preferencias de interfaz</h2><p>Estos ajustes se guardan solamente en este navegador.</p></div>{options.map(([key, title, description]) => <div className="setting-row" key={key}><div><strong>{title}</strong><p>{description}</p></div><button className={`toggle-switch ${settings[key] ? 'on' : ''}`} onClick={() => toggle(key)} aria-pressed={settings[key]}><span /></button></div>)}</article></div></section>
 }
 
 function LogoutConfirmation({ onCancel, onConfirm }) {
@@ -437,6 +549,7 @@ function Dashboard({ session, onLogout }) {
   const [customers, setCustomers] = useState([])
   const [professionals, setProfessionals] = useState([])
   const [services, setServices] = useState([])
+  const [businessHours, setBusinessHours] = useState([])
   const [appointments, setAppointments] = useState([])
   const [teamMembers, setTeamMembers] = useState([])
   const [clientsList, setClientsList] = useState([])
@@ -463,6 +576,12 @@ function Dashboard({ session, onLogout }) {
   const initials = `${user.nombre?.[0] ?? ''}${user.apellido?.[0] ?? ''}`.toUpperCase()
   const dateKey = toDateKey(selectedDate)
   const dayAppointments = useMemo(() => appointments.filter((item) => item.date === dateKey && item.status !== 'cancelled'), [appointments, dateKey])
+  const daySchedule = getDaySchedule(businessHours, selectedDate)
+  const availableMinutes = daySchedule ? (daySchedule.closesAt - daySchedule.opensAt) * professionals.length : 0
+  const occupiedMinutes = dayAppointments
+    .filter((item) => item.status !== 'no_show')
+    .reduce((sum, item) => sum + item.duration + item.bufferBefore + item.bufferAfter, 0)
+  const dayOccupancy = availableMinutes > 0 ? Math.min(100, Math.round(occupiedMinutes / availableMinutes * 100)) : 0
   const revenue = dayAppointments.reduce((sum, item) => sum + (item.total ?? services.find((service) => service.id === item.serviceId)?.price ?? 0), 0)
   const replaceAppointmentsForDate = useCallback((date, nextAppointments) => {
     setAppointments((current) => [
@@ -497,8 +616,9 @@ function Dashboard({ session, onLogout }) {
       buscarEmpleados({ negocioId: selectedBusinessId, incluirInactivos: true }),
       buscarClientes({ negocioId: selectedBusinessId, incluirInactivos: true }),
       buscarServicios({ negocioId: selectedBusinessId, incluirInactivos: true }),
+      obtenerNegocio(selectedBusinessId),
     ])
-      .then(([catalog, citas, empleados, clientes, servicios]) => {
+      .then(([catalog, citas, empleados, clientes, servicios, negocio]) => {
         if (!active) return
         const mappedCatalog = mapCatalog(catalog)
         setBranches(mappedCatalog.branches)
@@ -509,6 +629,7 @@ function Dashboard({ session, onLogout }) {
         setTeamMembers((empleados ?? []).map(mapEmployee))
         setClientsList((clientes ?? []).map(mapClient))
         setServiceList((servicios ?? []).map(mapServiceItem))
+        setBusinessHours(negocio?.horarios ?? [])
       })
       .catch((err) => active && setError(err.message))
       .finally(() => active && setAppointmentsLoading(false))
@@ -639,18 +760,30 @@ function Dashboard({ session, onLogout }) {
   function selectSection(section) { setActiveSection(section); setMenuOpen(false) }
 
   function openNewAppointment(preset = {}) {
+    const requestedDate = preset.date ? new Date(`${preset.date}T12:00:00`) : selectedDate
+    const schedule = getDaySchedule(businessHours, requestedDate)
+    const nextSlot = schedule
+      ? { date: requestedDate, time: minutesToTime(schedule.opensAt) }
+      : findNextOpenSlot(businessHours, requestedDate)
+    if (!nextSlot) {
+      setError('No hay horarios de atención disponibles para crear una cita.')
+      return
+    }
+
     setModalError(null)
     setModalAppointment({
       branchId: branches[0]?.id ?? '',
-      date: dateKey,
-      time: '09:00',
       duration: services[0]?.duration ?? 60,
+      bufferBefore: services[0]?.bufferBefore ?? 0,
+      bufferAfter: services[0]?.bufferAfter ?? 0,
       status: 'confirmed',
       notes: '',
       customerId: customers[0]?.id ?? '',
       serviceId: services[0]?.id ?? '',
       professionalId: professionals[0]?.id ?? '',
       ...preset,
+      date: schedule ? (preset.date ?? toDateKey(nextSlot.date)) : toDateKey(nextSlot.date),
+      time: preset.time ?? nextSlot.time,
     })
   }
 
@@ -698,17 +831,17 @@ function Dashboard({ session, onLogout }) {
     if (loading) return <section className="empty-panel">Cargando negocios...</section>
     if (businesses.length === 0) return <section className="empty-panel"><h2>No tienes negocios activos todavía.</h2><p>Cuando exista un negocio asociado a tu usuario, aquí aparecerán sus citas, servicios y clientes.</p></section>
     if (error) return <section className="empty-panel error-panel"><h2>No pudimos cargar el dashboard.</h2><p>{error}</p></section>
-    if (activeSection === 'calendar') return <Schedule expanded selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} />
+    if (activeSection === 'calendar') return <Schedule expanded selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} horarios={businessHours} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} />
     if (activeSection === 'appointments') return <AppointmentList appointments={appointments} customers={customers} professionals={professionals} services={services} selectedDate={appointmentListDate} onChangeDate={setAppointmentListDate} onEdit={setModalAppointment} onNew={() => openNewAppointment({ date: appointmentListDate })} />
     if (activeSection === 'team') return <TeamView employees={teamMembers} onEdit={setModalEmployee} onNew={openNewEmployee} />
     if (activeSection === 'customers') return <ClientsView clients={clientsList} onEdit={setModalClient} onNew={openNewClient} />
     if (activeSection === 'services') return <ServicesView services={serviceList} onEdit={setModalService} onNew={openNewService} />
     if (activeSection === 'reports') return <ReportsView key={selectedBusinessId} negocioId={selectedBusinessId} />
-    if (activeSection === 'settings') return <SettingsView settings={settings} setSettings={setSettings} />
-    return <><section className="stats-grid"><article className="stat-card"><span className="stat-icon green"><Icon name="calendar" /></span><div><small>Citas del día</small><strong>{dayAppointments.length}</strong><p><b>{dayAppointments.filter((item) => item.status === 'confirmed').length}</b> confirmadas</p></div></article><article className="stat-card"><span className="stat-icon dark"><Icon name="customers" /></span><div><small>Clientes agendados</small><strong>{new Set(dayAppointments.map((item) => item.customerId)).size}</strong><p>Agenda seleccionada</p></div></article><article className="stat-card"><span className="stat-icon soft"><Icon name="reports" /></span><div><small>Ingresos estimados</small><strong>RD$ {revenue.toLocaleString()}</strong><p>Servicios no cancelados</p></div></article><article className="stat-card"><span className="stat-icon amber"><Icon name="team" /></span><div><small>Personal activo</small><strong>{professionals.length}</strong><p>Profesionales del negocio</p></div></article></section><section className="workspace-grid"><Schedule selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} /><aside className="today-card"><div className="card-heading"><div><span className="section-kicker">PRÓXIMAS</span><h2>Citas por atender</h2></div></div>{appointmentsLoading && <div className="empty-state compact">Actualizando agenda...</div>}{!appointmentsLoading && dayAppointments.sort((a, b) => a.time.localeCompare(b.time)).slice(0, 5).map((appointment) => <button className="next-appointment" key={appointment.id} onClick={() => setModalAppointment(appointment)}><span className="appointment-time">{appointment.time}</span><div><strong>{customers.find((item) => item.id === appointment.customerId)?.name ?? appointment.customerName}</strong><p>{services.find((item) => item.id === appointment.serviceId)?.name ?? appointment.serviceName} · {professionals.find((item) => item.id === appointment.professionalId)?.shortName ?? appointment.professionalName}</p></div><Icon name="chevron" /></button>)}{!appointmentsLoading && dayAppointments.length === 0 && <div className="empty-state compact">No hay citas para este día.</div>}<button className="view-all-button" onClick={() => selectSection('appointments')}>Ver todas las citas <Icon name="chevron" /></button><div className="occupancy-card"><div><span>Ocupación del día</span><strong>{Math.min(100, Math.round(dayAppointments.length / 16 * 100))}%</strong></div><div className="progress-track"><span style={{ width: `${Math.min(100, dayAppointments.length / 16 * 100)}%` }} /></div><p>{dayAppointments.length} citas registradas</p></div></aside></section></>
+    if (activeSection === 'settings') return <BusinessSettingsView key={selectedBusinessId} negocioId={selectedBusinessId} settings={settings} setSettings={setSettings} onBusinessUpdated={setBusinessHours} />
+    return <><section className="stats-grid"><article className="stat-card"><span className="stat-icon green"><Icon name="calendar" /></span><div><small>Citas del día</small><strong>{dayAppointments.length}</strong><p><b>{dayAppointments.filter((item) => item.status === 'confirmed').length}</b> confirmadas</p></div></article><article className="stat-card"><span className="stat-icon dark"><Icon name="customers" /></span><div><small>Clientes agendados</small><strong>{new Set(dayAppointments.map((item) => item.customerId)).size}</strong><p>Agenda seleccionada</p></div></article><article className="stat-card"><span className="stat-icon soft"><Icon name="reports" /></span><div><small>Ingresos estimados</small><strong>RD$ {revenue.toLocaleString()}</strong><p>Servicios no cancelados</p></div></article><article className="stat-card"><span className="stat-icon amber"><Icon name="team" /></span><div><small>Personal activo</small><strong>{professionals.length}</strong><p>Profesionales del negocio</p></div></article></section><section className="workspace-grid"><Schedule selectedDate={selectedDate} appointments={appointments} professionals={professionals} customers={customers} services={services} horarios={businessHours} onChangeDate={setSelectedDate} onOpenAppointment={openNewAppointment} /><aside className="today-card"><div className="card-heading"><div><span className="section-kicker">PRÓXIMAS</span><h2>Citas por atender</h2></div></div>{appointmentsLoading && <div className="empty-state compact">Actualizando agenda...</div>}{!appointmentsLoading && dayAppointments.sort((a, b) => a.time.localeCompare(b.time)).slice(0, 5).map((appointment) => <button className="next-appointment" key={appointment.id} onClick={() => setModalAppointment(appointment)}><span className="appointment-time">{appointment.time}</span><div><strong>{customers.find((item) => item.id === appointment.customerId)?.name ?? appointment.customerName}</strong><p>{services.find((item) => item.id === appointment.serviceId)?.name ?? appointment.serviceName} · {professionals.find((item) => item.id === appointment.professionalId)?.shortName ?? appointment.professionalName}</p></div><Icon name="chevron" /></button>)}{!appointmentsLoading && dayAppointments.length === 0 && <div className="empty-state compact">No hay citas para este día.</div>}<button className="view-all-button" onClick={() => selectSection('appointments')}>Ver todas las citas <Icon name="chevron" /></button><div className="occupancy-card"><div><span>Ocupación del día</span><strong>{dayOccupancy}%</strong></div><div className="progress-track"><span style={{ width: `${dayOccupancy}%` }} /></div><p>{availableMinutes > 0 ? `${occupiedMinutes} de ${availableMinutes} min ocupados` : 'Sin capacidad disponible este día'}</p></div></aside></section></>
   }
 
-  return <main className="dashboard-page">{menuOpen && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} />}<aside className={`dashboard-sidebar ${menuOpen ? 'open' : ''}`}><div className="sidebar-logo-wrap"><img src={glowUpLogo} alt="GlowUp RD" className="sidebar-logo" /></div><nav className="sidebar-nav" aria-label="Navegación principal"><span className="nav-label">GESTIÓN</span>{navigation.slice(0, 6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}<span className="nav-label nav-label-secondary">ANÁLISIS</span>{navigation.slice(6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}</nav><div className="sidebar-user"><span className="user-avatar">{initials || 'GU'}</span><span className="user-info"><strong>{user.nombre} {user.apellido}</strong><small>{user.correo}</small></span><button onClick={() => setLogoutConfirmationOpen(true)} title="Cerrar sesión" aria-label="Cerrar sesión"><Icon name="logout" /></button></div></aside><section className="dashboard-content"><header className="dashboard-header"><div className="header-title-wrap"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button><div><span className="page-kicker">{activeSection === 'dashboard' ? 'PANEL PRINCIPAL' : 'GESTIÓN'}</span><h1>{activeSection === 'dashboard' ? `Buenos días, ${user.nombre}` : sectionTitles[activeSection]}</h1><p className="current-date">{formatLongDate(new Date())}</p></div></div><div className="header-actions">{businesses.length > 1 && <select className="business-selector" value={selectedBusinessId} onChange={(event) => setSelectedBusinessId(event.target.value)}>{businesses.map((business) => <option key={business.id} value={business.id}>{business.nombre}</option>)}</select>}<div className="notification-wrap"><button className="notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Icon name="bell" /><span /></button>{notificationsOpen && <div className="notification-popover"><strong>Notificaciones</strong><p>Tienes {dayAppointments.filter((item) => item.status === 'pending').length} citas pendientes de confirmar.</p><button onClick={() => { selectSection('appointments'); setNotificationsOpen(false) }}>Revisar citas</button></div>}</div><button className="new-appointment" onClick={() => openNewAppointment()} disabled={!selectedBusinessId || customers.length === 0 || professionals.length === 0 || services.length === 0}><Icon name="plus" />Nueva cita</button></div></header>{renderMainContent()}</section>{modalAppointment && <AppointmentModal appointment={modalAppointment} branches={branches} customers={customers} professionals={professionals} services={services} saving={savingAppointment} error={modalError} onClose={() => setModalAppointment(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}{modalEmployee && <EmployeeModal employee={modalEmployee} branches={branches} saving={savingEmployee} error={employeeModalError} onClose={() => setModalEmployee(null)} onSave={saveEmployee} />}{modalClient && <ClientModal client={modalClient} saving={savingClient} error={clientModalError} onClose={() => setModalClient(null)} onSave={saveClient} />}{modalService && <ServiceModal service={modalService} saving={savingService} error={serviceModalError} onClose={() => setModalService(null)} onSave={saveService} />}{logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={onLogout} />}</main>
+  return <main className="dashboard-page">{menuOpen && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} />}<aside className={`dashboard-sidebar ${menuOpen ? 'open' : ''}`}><div className="sidebar-logo-wrap"><img src={glowUpLogo} alt="GlowUp RD" className="sidebar-logo" /></div><nav className="sidebar-nav" aria-label="Navegación principal"><span className="nav-label">GESTIÓN</span>{navigation.slice(0, 6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}<span className="nav-label nav-label-secondary">ANÁLISIS</span>{navigation.slice(6).map(([key, label]) => <button key={key} className={activeSection === key ? 'active' : ''} onClick={() => selectSection(key)}><Icon name={key} /><span>{label}</span></button>)}</nav><div className="sidebar-user"><span className="user-avatar">{initials || 'GU'}</span><span className="user-info"><strong>{user.nombre} {user.apellido}</strong><small>{user.correo}</small></span><button onClick={() => setLogoutConfirmationOpen(true)} title="Cerrar sesión" aria-label="Cerrar sesión"><Icon name="logout" /></button></div></aside><section className="dashboard-content"><header className="dashboard-header"><div className="header-title-wrap"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button><div><span className="page-kicker">{activeSection === 'dashboard' ? 'PANEL PRINCIPAL' : 'GESTIÓN'}</span><h1>{activeSection === 'dashboard' ? `Buenos días, ${user.nombre}` : sectionTitles[activeSection]}</h1><p className="current-date">{formatLongDate(new Date())}</p></div></div><div className="header-actions">{businesses.length > 1 && <select className="business-selector" value={selectedBusinessId} onChange={(event) => setSelectedBusinessId(event.target.value)}>{businesses.map((business) => <option key={business.id} value={business.id}>{business.nombre}</option>)}</select>}<div className="notification-wrap"><button className="notification-button" aria-label="Notificaciones" onClick={() => setNotificationsOpen((open) => !open)}><Icon name="bell" /><span /></button>{notificationsOpen && <div className="notification-popover"><strong>Notificaciones</strong><p>Tienes {dayAppointments.filter((item) => item.status === 'pending').length} citas pendientes de confirmar.</p><button onClick={() => { selectSection('appointments'); setNotificationsOpen(false) }}>Revisar citas</button></div>}</div><button className="new-appointment" onClick={() => openNewAppointment()} disabled={!selectedBusinessId || customers.length === 0 || professionals.length === 0 || services.length === 0}><Icon name="plus" />Nueva cita</button></div></header>{renderMainContent()}</section>{modalAppointment && <AppointmentModal appointment={modalAppointment} branches={branches} customers={customers} professionals={professionals} services={services} horarios={businessHours} negocioId={selectedBusinessId} saving={savingAppointment} error={modalError} onClose={() => setModalAppointment(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}{modalEmployee && <EmployeeModal employee={modalEmployee} branches={branches} saving={savingEmployee} error={employeeModalError} onClose={() => setModalEmployee(null)} onSave={saveEmployee} />}{modalClient && <ClientModal client={modalClient} saving={savingClient} error={clientModalError} onClose={() => setModalClient(null)} onSave={saveClient} />}{modalService && <ServiceModal service={modalService} saving={savingService} error={serviceModalError} onClose={() => setModalService(null)} onSave={saveService} />}{logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={onLogout} />}</main>
 }
 
 export default Dashboard

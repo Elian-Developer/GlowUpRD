@@ -115,10 +115,13 @@ public sealed class NegocioService : INegocioService
         if (!await _negocios.UsuarioTieneAccesoAsync(usuarioId, negocioId, cancellationToken))
             return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
 
-        var negocio = await _negocios.ObtenerAsync(negocioId, cancellationToken);
-        return negocio is null
-            ? MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.NotFound, "El negocio no existe.")
-            : MaintenanceResult<NegocioDetalleResponse>.Ok(Map(negocio));
+        var negocio = await _negocios.ObtenerPerfilAsync(negocioId, cancellationToken);
+        if (negocio is null)
+            return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.NotFound, "El negocio no existe.");
+        if (!negocio.Sucursales.Any(sucursal => sucursal.EsPrincipal))
+            return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "El negocio no tiene una sucursal principal configurada.");
+
+        return MaintenanceResult<NegocioDetalleResponse>.Ok(Map(negocio));
     }
 
     public async Task<MaintenanceResult<NegocioDetalleResponse>> ActualizarAsync(long usuarioId, long negocioId, ActualizarNegocioRequest request, CancellationToken cancellationToken = default)
@@ -126,15 +129,53 @@ public sealed class NegocioService : INegocioService
         if (!await _negocios.UsuarioEsPropietarioAsync(usuarioId, negocioId, cancellationToken))
             return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Forbidden, "Solo el dueño del negocio puede editar este perfil.");
 
-        var negocio = await _negocios.ObtenerParaEditarAsync(negocioId, cancellationToken);
+        var negocio = await _negocios.ObtenerPerfilParaEditarAsync(negocioId, cancellationToken);
         if (negocio is null) return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.NotFound, "El negocio no existe.");
 
+        if (!HorariosValidos(request.Horarios))
+            return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "Configura un horario único y válido para cada día de la semana.");
+
+        var sucursalPrincipal = negocio.Sucursales
+            .Where(sucursal => sucursal.EsPrincipal)
+            .OrderBy(sucursal => sucursal.Id)
+            .FirstOrDefault();
+        if (sucursalPrincipal is null)
+            return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "El negocio no tiene una sucursal principal configurada.");
+
         negocio.Nombre = request.Nombre.Trim();
+        negocio.Rnc = Normalize(request.Rnc);
         negocio.Telefono = Normalize(request.Telefono);
         negocio.Correo = Normalize(request.Correo);
         negocio.Descripcion = Normalize(request.Descripcion);
         negocio.LogoUrl = Normalize(request.LogoUrl);
         negocio.ActualizadoEn = DateTime.UtcNow;
+
+        sucursalPrincipal.Nombre = request.SucursalPrincipal.Nombre.Trim();
+        sucursalPrincipal.Telefono = Normalize(request.SucursalPrincipal.Telefono);
+        sucursalPrincipal.Direccion = request.SucursalPrincipal.Direccion.Trim();
+        sucursalPrincipal.Ciudad = request.SucursalPrincipal.Ciudad.Trim();
+        sucursalPrincipal.Provincia = request.SucursalPrincipal.Provincia.Trim();
+        sucursalPrincipal.Pais = request.SucursalPrincipal.Pais.Trim();
+        sucursalPrincipal.ActualizadoEn = DateTime.UtcNow;
+
+        foreach (var horarioRequest in request.Horarios)
+        {
+            var horario = sucursalPrincipal.HorariosNegocios
+                .SingleOrDefault(item => item.DiaSemana == horarioRequest.DiaSemana);
+            if (horario is null)
+            {
+                horario = new HorariosNegocio
+                {
+                    SucursalId = sucursalPrincipal.Id,
+                    DiaSemana = horarioRequest.DiaSemana,
+                };
+                sucursalPrincipal.HorariosNegocios.Add(horario);
+            }
+
+            horario.Cerrado = horarioRequest.Cerrado;
+            horario.AbreA = horarioRequest.Cerrado ? null : horarioRequest.AbreA;
+            horario.CierraA = horarioRequest.Cerrado ? null : horarioRequest.CierraA;
+        }
 
         await _negocios.GuardarCambiosAsync(cancellationToken);
         return MaintenanceResult<NegocioDetalleResponse>.Ok(Map(negocio));
@@ -214,9 +255,33 @@ public sealed class NegocioService : INegocioService
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static NegocioDetalleResponse Map(Negocio negocio) => new(
-        negocio.Id, negocio.Nombre, negocio.Slug, negocio.TipoNegocio, negocio.Descripcion,
-        negocio.Rnc, negocio.Telefono, negocio.Correo, negocio.LogoUrl, negocio.Estado);
+    private static bool HorariosValidos(IReadOnlyCollection<ActualizarHorarioNegocioRequest> horarios) =>
+        horarios.Count == 7 &&
+        horarios.Select(horario => horario.DiaSemana).Distinct().Count() == 7 &&
+        horarios.All(horario => horario.Cerrado ||
+            (horario.AbreA.HasValue && horario.CierraA.HasValue && horario.AbreA < horario.CierraA));
+
+    private static NegocioDetalleResponse Map(Negocio negocio)
+    {
+        var sucursalPrincipal = negocio.Sucursales
+            .Where(sucursal => sucursal.EsPrincipal)
+            .OrderBy(sucursal => sucursal.Id)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException("El negocio no tiene una sucursal principal configurada.");
+
+        return new NegocioDetalleResponse(
+            negocio.Id, negocio.Nombre, negocio.Slug, negocio.TipoNegocio, negocio.Descripcion,
+            negocio.Rnc, negocio.Telefono, negocio.Correo, negocio.LogoUrl, negocio.Estado,
+            new SucursalPrincipalResponse(
+                sucursalPrincipal.Id, sucursalPrincipal.Nombre, sucursalPrincipal.Telefono,
+                sucursalPrincipal.Direccion, sucursalPrincipal.Ciudad, sucursalPrincipal.Provincia,
+                sucursalPrincipal.Pais),
+            sucursalPrincipal.HorariosNegocios
+                .OrderBy(horario => horario.DiaSemana)
+                .Select(horario => new HorarioNegocioResponse(
+                    horario.DiaSemana, horario.AbreA, horario.CierraA, horario.Cerrado))
+                .ToList());
+    }
 
     private static MiembroNegocioResponse Map(MiembrosNegocio miembro) =>
         new(miembro.UsuarioId, miembro.Usuario.Nombre, miembro.Usuario.Apellido, miembro.Usuario.Correo, miembro.RolMiembro, miembro.Estado);

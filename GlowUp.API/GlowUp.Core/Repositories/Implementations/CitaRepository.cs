@@ -22,6 +22,14 @@ public sealed class CitaRepository : ICitaRepository
         return await query.OrderBy(cita => cita.Inicio).ToListAsync(cancellationToken);
     }
 
+    public Task<List<long>> ObtenerClientesConIngresosAntesDeAsync(long negocioId, DateOnly fecha, CancellationToken cancellationToken = default) =>
+        _context.Citas.AsNoTracking()
+            .Where(cita => cita.NegocioId == negocioId && cita.FechaCita < fecha &&
+                (cita.Estado == "confirmed" || cita.Estado == "completed"))
+            .Select(cita => cita.ClienteId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
     public Task<Cita?> ObtenerDetalleAsync(long id, CancellationToken cancellationToken = default) =>
         Detalles().FirstOrDefaultAsync(cita => cita.Id == id, cancellationToken);
 
@@ -35,7 +43,8 @@ public sealed class CitaRepository : ICitaRepository
         _context.Empleados.AsNoTracking().FirstOrDefaultAsync(empleado => empleado.Id == empleadoId && empleado.NegocioId == negocioId && empleado.Estado == "active", cancellationToken);
 
     public Task<Sucursal?> ObtenerSucursalAsync(long negocioId, long sucursalId, CancellationToken cancellationToken = default) =>
-        _context.Sucursales.AsNoTracking().FirstOrDefaultAsync(sucursal => sucursal.Id == sucursalId && sucursal.NegocioId == negocioId && sucursal.Estado == "active", cancellationToken);
+        _context.Sucursales.AsNoTracking().Include(sucursal => sucursal.HorariosNegocios)
+            .FirstOrDefaultAsync(sucursal => sucursal.Id == sucursalId && sucursal.NegocioId == negocioId && sucursal.Estado == "active", cancellationToken);
 
     public Task<Cliente?> ObtenerClienteAsync(long clienteId, CancellationToken cancellationToken = default) =>
         _context.Clientes.AsNoTracking().FirstOrDefaultAsync(cliente => cliente.Id == clienteId, cancellationToken);
@@ -43,11 +52,12 @@ public sealed class CitaRepository : ICitaRepository
     public Task<ClientesNegocio?> ObtenerClienteNegocioAsync(long negocioId, long clienteId, CancellationToken cancellationToken = default) =>
         _context.ClientesNegocios.AsNoTracking().FirstOrDefaultAsync(item => item.NegocioId == negocioId && item.ClienteId == clienteId && item.Estado == "active", cancellationToken);
 
-    public Task<bool> ExisteConflictoAsync(long empleadoId, DateTime inicio, DateTime fin, long? excluirCitaId, CancellationToken cancellationToken = default) =>
-        _context.Citas.AnyAsync(cita => cita.EmpleadoId == empleadoId &&
-            cita.Estado != "cancelled" && cita.Estado != "no_show" &&
-            (!excluirCitaId.HasValue || cita.Id != excluirCitaId.Value) &&
-            cita.Inicio < fin && cita.Fin > inicio, cancellationToken);
+    public Task<List<Cita>> ObtenerCitasParaConflictoAsync(long empleadoId, DateTime inicio, DateTime fin, long? excluirCitaId, CancellationToken cancellationToken = default) =>
+        _context.Citas.AsNoTracking().Include(cita => cita.ServiciosCita).ThenInclude(servicio => servicio.Servicio)
+            .Where(cita => cita.EmpleadoId == empleadoId && cita.Estado != "cancelled" && cita.Estado != "no_show" &&
+                (!excluirCitaId.HasValue || cita.Id != excluirCitaId.Value) &&
+                cita.Inicio < fin.AddDays(1) && cita.Fin > inicio.AddDays(-1))
+            .ToListAsync(cancellationToken);
 
     public Task<List<Sucursal>> ObtenerSucursalesAsync(long negocioId, CancellationToken cancellationToken = default) =>
         _context.Sucursales.AsNoTracking().Where(item => item.NegocioId == negocioId && item.Estado == "active").OrderBy(item => item.Nombre).ToListAsync(cancellationToken);

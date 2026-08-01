@@ -1,4 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { buscarCitas } from '../services/citasApi'
+
+const SLOT_MINUTES = 15
+
+function toMinutes(value) {
+  const [hour, minute] = value?.slice(0, 5).split(':').map(Number) ?? []
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null
+}
+
+function toTime(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
+function getBusyBlocks(appointments, professionalId, excludeId) {
+  return appointments.filter((item) => String(item.empleadoId) === String(professionalId) && item.estado !== 'cancelled' && item.estado !== 'no_show' && String(item.id) !== String(excludeId ?? ''))
+    .map((item) => {
+      const start = toMinutes(item.inicio?.slice(11, 16))
+      const end = toMinutes(item.fin?.slice(11, 16))
+      const before = (item.servicios ?? []).reduce((sum, service) => sum + Number(service.minutosAntes ?? 0), 0)
+      const after = (item.servicios ?? []).reduce((sum, service) => sum + Number(service.minutosDespues ?? 0), 0)
+      return start === null || end === null ? null : { start: start - before, end: end + after }
+    }).filter(Boolean)
+}
+
+function getAvailableTimes(horarios, date, duration, bufferBefore, bufferAfter, appointments, professionalId, excludeId) {
+  if (!date) return []
+  const day = new Date(`${date}T12:00:00`).getDay()
+  const schedule = horarios?.find((item) => Number(item.diaSemana) === day)
+  const opensAt = toMinutes(schedule?.abreA)
+  const closesAt = toMinutes(schedule?.cierraA)
+  if (!schedule || schedule.cerrado || opensAt === null || closesAt === null) return []
+  const firstStart = opensAt + Number(bufferBefore || 0)
+  const latestStart = closesAt - Number(duration || 0) - Number(bufferAfter || 0)
+  const busyBlocks = getBusyBlocks(appointments, professionalId, excludeId)
+  return Array.from({ length: Math.max(0, Math.floor((latestStart - firstStart) / SLOT_MINUTES) + 1) }, (_, index) => firstStart + index * SLOT_MINUTES)
+    .filter((start) => {
+      const blockedStart = start - Number(bufferBefore || 0)
+      const blockedEnd = start + Number(duration || 0) + Number(bufferAfter || 0)
+      return !busyBlocks.some((block) => blockedStart < block.end && block.start < blockedEnd)
+    }).map(toTime)
+}
 
 const emptyAppointment = {
   branchId: '',
@@ -8,6 +49,8 @@ const emptyAppointment = {
   date: '',
   time: '09:00',
   duration: 60,
+  bufferBefore: 0,
+  bufferAfter: 0,
   status: 'confirmed',
   notes: '',
 }
@@ -18,6 +61,8 @@ export default function AppointmentModal({
   customers,
   professionals,
   services,
+  horarios,
+  negocioId,
   saving = false,
   error,
   onClose,
@@ -25,6 +70,20 @@ export default function AppointmentModal({
   onDelete,
 }) {
   const [form, setForm] = useState(() => ({ ...emptyAppointment, ...appointment }))
+  const availabilityKey = `${negocioId}-${form.date}`
+  const [availability, setAvailability] = useState({ key: '', appointments: null })
+  useEffect(() => {
+    if (!negocioId || !form.date) return undefined
+    let active = true
+    buscarCitas({ negocioId, desde: form.date, hasta: form.date })
+      .then((appointments) => active && setAvailability({ key: availabilityKey, appointments: appointments ?? [] }))
+      .catch(() => active && setAvailability({ key: availabilityKey, appointments: null }))
+    return () => { active = false }
+  }, [availabilityKey, form.date, negocioId])
+  const dayAppointments = availability.key === availabilityKey ? availability.appointments : null
+  const availableTimes = dayAppointments === null ? [] : getAvailableTimes(horarios, form.date, form.duration, form.bufferBefore, form.bufferAfter, dayAppointments, form.professionalId, appointment?.id)
+  const selectedTime = availableTimes.includes(form.time) ? form.time : ''
+  const totalReserved = form.duration + form.bufferBefore + form.bufferAfter
 
   function update(event) {
     const { name, value } = event.target
@@ -37,6 +96,8 @@ export default function AppointmentModal({
       ...current,
       serviceId: event.target.value,
       duration: service?.duration ?? current.duration,
+      bufferBefore: service?.bufferBefore ?? 0,
+      bufferAfter: service?.bufferAfter ?? 0,
     }))
   }
 
@@ -88,11 +149,11 @@ export default function AppointmentModal({
 
           <div className="modal-field-row">
             <label><span>Fecha</span><input type="date" name="date" value={form.date} onChange={update} required /></label>
-            <label><span>Hora</span><input type="time" name="time" min="08:00" max="19:00" step="900" value={form.time} onChange={update} required /></label>
+            <label><span>Hora</span><select name="time" value={selectedTime} onChange={update} required><option value="" disabled>{dayAppointments === null ? 'Cargando disponibilidad...' : availableTimes.length ? 'Selecciona una hora' : 'No hay horarios disponibles'}</option>{availableTimes.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
           </div>
 
           <div className="modal-field-row">
-            <label><span>Duración</span><select name="duration" value={form.duration} onChange={update} disabled><option value={form.duration}>{form.duration} minutos</option></select></label>
+            <div className="appointment-duration-summary"><span>Duración reservada</span><strong>{form.duration} min de servicio</strong><small>{form.bufferBefore || form.bufferAfter ? `Buffer: ${form.bufferBefore} min antes · ${form.bufferAfter} min después` : 'Sin tiempo de buffer'}</small><b>{totalReserved} min bloqueados en agenda</b></div>
             <label><span>Estado</span><select name="status" value={form.status} onChange={update}><option value="pending">Pendiente</option><option value="confirmed">Confirmada</option><option value="completed">Completada</option><option value="cancelled">Cancelada</option><option value="no_show">No asistió</option></select></label>
           </div>
 

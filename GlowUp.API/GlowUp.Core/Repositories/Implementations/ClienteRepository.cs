@@ -22,6 +22,15 @@ public sealed class ClienteRepository : IClienteRepository
         return query.FirstOrDefaultAsync(item => item.ClienteId == clienteId, cancellationToken);
     }
 
+    public Task<int> ContarNuevosAsync(long negocioId, DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
+    {
+        var inicio = desde.ToDateTime(TimeOnly.MinValue);
+        var finExclusivo = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        return _context.ClientesNegocios.AsNoTracking().CountAsync(item =>
+            item.NegocioId == negocioId && item.CreadoEn >= inicio && item.CreadoEn < finExclusivo,
+            cancellationToken);
+    }
+
     public async Task AgregarAsync(Cliente cliente, ClientesNegocio relacion, CancellationToken cancellationToken = default)
     {
         relacion.Cliente = cliente;

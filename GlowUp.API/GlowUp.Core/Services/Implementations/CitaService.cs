@@ -116,7 +116,7 @@ public sealed class CitaService : ICitaService
             sucursales.Select(item => new CatalogoItemResponse(item.Id, item.Nombre, item.Ciudad)).ToList(),
             clientes.Select(item => new CatalogoItemResponse(item.ClienteId, $"{item.Cliente.Nombre} {item.Cliente.Apellido}", item.Cliente.Telefono)).ToList(),
             empleados.Select(item => new CatalogoItemResponse(item.Id, $"{item.Nombre} {item.Apellido}", item.Puesto)).ToList(),
-            servicios.Select(item => new CatalogoServicioResponse(item.Id, item.Nombre, item.DuracionMinutos, item.Precio)).ToList()));
+            servicios.Select(item => new CatalogoServicioResponse(item.Id, item.Nombre, item.DuracionMinutos, item.Precio, item.BufferAntesMinutos, item.BufferDespuesMinutos)).ToList()));
     }
 
     public async Task<IReadOnlyList<NegocioResumenResponse>> ObtenerNegociosAsync(long usuarioId, CancellationToken cancellationToken = default) =>
@@ -145,8 +145,25 @@ public sealed class CitaService : ICitaService
         var servicios = await _repository.ObtenerServiciosAsync(request.NegocioId, request.ServicioIds, cancellationToken);
         if (servicios.Count != request.ServicioIds.Count) return ValidationData.Fail(MaintenanceStatus.Invalid, "Uno o más servicios no pertenecen al negocio o están inactivos.");
         var fin = request.Inicio.AddMinutes(servicios.Sum(item => item.DuracionMinutos));
-        if (request.Estado is not "cancelled" and not "no_show" && await _repository.ExisteConflictoAsync(request.EmpleadoId, request.Inicio, fin, excludeId, cancellationToken))
-            return ValidationData.Fail(MaintenanceStatus.Conflict, "El empleado ya tiene una cita en ese horario.");
+        var bufferAntes = servicios.Sum(item => item.BufferAntesMinutos);
+        var bufferDespues = servicios.Sum(item => item.BufferDespuesMinutos);
+        var inicioBloqueado = request.Inicio.AddMinutes(-bufferAntes);
+        var finBloqueado = fin.AddMinutes(bufferDespues);
+        var horario = sucursal.HorariosNegocios.SingleOrDefault(item => item.DiaSemana == (short)request.Inicio.DayOfWeek);
+        if (horario is null || horario.Cerrado || !horario.AbreA.HasValue || !horario.CierraA.HasValue)
+            return ValidationData.Fail(MaintenanceStatus.Invalid, "La sucursal está cerrada en la fecha seleccionada.");
+
+        var apertura = request.Inicio.Date.Add(horario.AbreA.Value.ToTimeSpan());
+        var cierre = request.Inicio.Date.Add(horario.CierraA.Value.ToTimeSpan());
+        if (inicioBloqueado < apertura || finBloqueado > cierre)
+            return ValidationData.Fail(MaintenanceStatus.Invalid, "La cita debe estar dentro del horario de atención de la sucursal.");
+
+        if (request.Estado is not "cancelled" and not "no_show")
+        {
+            var citasExistentes = await _repository.ObtenerCitasParaConflictoAsync(request.EmpleadoId, inicioBloqueado, finBloqueado, excludeId, cancellationToken);
+            if (citasExistentes.Any(cita => inicioBloqueado < FinBloqueado(cita) && InicioBloqueado(cita) < finBloqueado))
+                return ValidationData.Fail(MaintenanceStatus.Conflict, "El empleado ya tiene una cita o tiempo de buffer en ese horario.");
+        }
 
         return new(MaintenanceStatus.Success, null, servicios, clienteNegocio, fin);
     }
@@ -157,9 +174,11 @@ public sealed class CitaService : ICitaService
         return saved is null ? MaintenanceResult<CitaResponse>.Fail(MaintenanceStatus.NotFound, "No se pudo recargar la cita.") : MaintenanceResult<CitaResponse>.Ok(Map(saved));
     }
 
+    private static DateTime InicioBloqueado(Cita cita) => cita.Inicio.AddMinutes(-cita.ServiciosCita.Sum(item => item.Servicio.BufferAntesMinutos));
+    private static DateTime FinBloqueado(Cita cita) => cita.Fin.AddMinutes(cita.ServiciosCita.Sum(item => item.Servicio.BufferDespuesMinutos));
     private static List<ServicioCita> BuildServices(IEnumerable<Servicio> servicios) => servicios.Select(item => new ServicioCita { ServicioId = item.Id, NombreServicio = item.Nombre, DuracionMinutos = item.DuracionMinutos, Precio = item.Precio }).ToList();
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static CitaResponse Map(Cita cita) => new(cita.Id, cita.NegocioId, cita.SucursalId, cita.Sucursal.Nombre, cita.ClienteId, $"{cita.Cliente.Nombre} {cita.Cliente.Apellido}", cita.EmpleadoId, $"{cita.Empleado.Nombre} {cita.Empleado.Apellido}", cita.FechaCita, cita.Inicio, cita.Fin, cita.Estado, cita.MotivoCancelacion, cita.Notas, cita.Total, cita.ServiciosCita.Select(item => new CitaServicioResponse(item.Id, item.ServicioId, item.NombreServicio, item.DuracionMinutos, item.Precio)).ToList());
+    private static CitaResponse Map(Cita cita) => new(cita.Id, cita.NegocioId, cita.SucursalId, cita.Sucursal.Nombre, cita.ClienteId, $"{cita.Cliente.Nombre} {cita.Cliente.Apellido}", cita.EmpleadoId, $"{cita.Empleado.Nombre} {cita.Empleado.Apellido}", cita.FechaCita, cita.Inicio, cita.Fin, cita.Estado, cita.MotivoCancelacion, cita.Notas, cita.Total, cita.ServiciosCita.Select(item => new CitaServicioResponse(item.Id, item.ServicioId, item.NombreServicio, item.DuracionMinutos, item.Precio, item.Servicio.BufferAntesMinutos, item.Servicio.BufferDespuesMinutos)).ToList());
 
     private sealed record ValidationData(MaintenanceStatus Status, string? Error, List<Servicio>? Servicios = null, ClientesNegocio? ClienteNegocio = null, DateTime Fin = default)
     {
