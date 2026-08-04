@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const emptyEmployee = {
   sucursalId: '',
@@ -11,7 +11,10 @@ const emptyEmployee = {
   activo: true,
   crearAcceso: false,
   password: '',
+  horarios: [],
 }
+
+const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 export default function EmployeeModal({
   employee,
@@ -24,6 +27,15 @@ export default function EmployeeModal({
   const [form, setForm] = useState(() => ({ ...emptyEmployee, ...employee }))
   const isEdit = Boolean(employee?.id)
 
+  useEffect(() => {
+    const inputs = document.querySelectorAll('.employee-modal input[type="time"]')
+    const openPicker = (event) => {
+      try { event.currentTarget.showPicker?.() } catch { /* The browser keeps its native time input behavior. */ }
+    }
+    inputs.forEach((input) => input.addEventListener('click', openPicker))
+    return () => inputs.forEach((input) => input.removeEventListener('click', openPicker))
+  }, [form.horarios])
+
   function update(event) {
     const { name, value, type, checked } = event.target
     setForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
@@ -34,9 +46,15 @@ export default function EmployeeModal({
     onSave(form)
   }
 
+  function updateShift(index, key, value) {
+    setForm((current) => ({ ...current, horarios: current.horarios.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) }))
+  }
+  function addShift(day) { setForm((current) => ({ ...current, horarios: [...current.horarios, { diaSemana: day, activo: true, iniciaA: '09:00', terminaA: '13:00' }] })) }
+  function removeShift(index) { setForm((current) => ({ ...current, horarios: current.horarios.filter((_, itemIndex) => itemIndex !== index) })) }
+
   return (
     <div className="modal-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="appointment-modal" role="dialog" aria-modal="true" aria-labelledby="employee-title">
+      <section className="appointment-modal employee-modal" role="dialog" aria-modal="true" aria-labelledby="employee-title">
         <header className="modal-header">
           <div><span className="section-kicker">PERSONAL</span><h2 id="employee-title">{isEdit ? 'Editar empleado' : 'Nuevo empleado'}</h2></div>
           <button type="button" onClick={onClose} aria-label="Cerrar modal">×</button>
@@ -80,6 +98,8 @@ export default function EmployeeModal({
           )}
 
           <label className="checkbox"><input type="checkbox" name="activo" checked={form.activo} onChange={update} /><span />Activo</label>
+
+          <section className="employee-hours"><strong>Horario de trabajo</strong><small>Agrega uno o varios turnos; los espacios entre ellos no estarán disponibles.</small><div className="employee-shifts">{days.map((day, dayIndex) => { const shifts = form.horarios.map((shift, index) => ({ shift, index })).filter(({ shift }) => shift.diaSemana === dayIndex); return <div className="employee-shift-day" key={day}><b>{day}</b><div>{shifts.map(({ shift, index }) => <span className="employee-shift" key={index}><input type="time" value={shift.iniciaA} onChange={(event) => updateShift(index, 'iniciaA', event.target.value)} required /><i>—</i><input type="time" value={shift.terminaA} onChange={(event) => updateShift(index, 'terminaA', event.target.value)} required /><button type="button" onClick={() => removeShift(index)} aria-label={`Eliminar turno de ${day}`}>×</button></span>)}<button type="button" className="row-action" onClick={() => addShift(dayIndex)}>+ Turno</button>{shifts.length === 0 && <small>No trabaja</small>}</div></div> })}</div></section>
 
           {error && <div className="modal-error" role="alert">{error}</div>}
 

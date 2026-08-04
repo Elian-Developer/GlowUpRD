@@ -114,6 +114,20 @@ create trigger trg_negocios_actualizado_en
     for each row execute function set_actualizado_en();
 
 -- ---------------------------------------------------------------------------
+-- feriados_negocio (business_holidays)
+-- ---------------------------------------------------------------------------
+create table feriados_negocio (
+    id                  bigint generated always as identity primary key,
+    negocio_id          bigint not null references negocios (id),
+    fecha               date not null,
+    nombre              varchar(150) not null,
+    creado_en           timestamp not null default now(),
+    unique (negocio_id, fecha)
+);
+
+create index idx_feriados_negocio_negocio on feriados_negocio (negocio_id);
+
+-- ---------------------------------------------------------------------------
 -- sucursales (branches)
 -- ---------------------------------------------------------------------------
 create table sucursales (
@@ -280,7 +294,7 @@ create table horarios_empleado (
     inicia_a            time not null,
     termina_a           time not null,
     activo              boolean not null default true,
-    unique (empleado_id, dia_semana)
+    unique (empleado_id, dia_semana, inicia_a, termina_a)
 );
 
 create index idx_horarios_empleado_empleado on horarios_empleado (empleado_id);

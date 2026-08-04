@@ -23,17 +23,21 @@ function getBusyBlocks(appointments, professionalId, excludeId) {
     }).filter(Boolean)
 }
 
-function getAvailableTimes(horarios, date, duration, bufferBefore, bufferAfter, appointments, professionalId, excludeId) {
+function getAvailableTimes(horarios, professionals, date, duration, bufferBefore, bufferAfter, appointments, professionalId, excludeId) {
   if (!date) return []
   const day = new Date(`${date}T12:00:00`).getDay()
   const schedule = horarios?.find((item) => Number(item.diaSemana) === day)
   const opensAt = toMinutes(schedule?.abreA)
   const closesAt = toMinutes(schedule?.cierraA)
   if (!schedule || schedule.cerrado || opensAt === null || closesAt === null) return []
-  const firstStart = opensAt + Number(bufferBefore || 0)
-  const latestStart = closesAt - Number(duration || 0) - Number(bufferAfter || 0)
+  const employeeTurns = professionals?.find((item) => String(item.id) === String(professionalId))?.horarios?.filter((item) => Number(item.diaSemana) === day && item.activo) ?? []
+  const turns = employeeTurns.length ? employeeTurns.map((turno) => ({ start: Math.max(opensAt, toMinutes(turno.iniciaA) ?? opensAt), end: Math.min(closesAt, toMinutes(turno.terminaA) ?? closesAt) })) : [{ start: opensAt, end: closesAt }]
   const busyBlocks = getBusyBlocks(appointments, professionalId, excludeId)
-  return Array.from({ length: Math.max(0, Math.floor((latestStart - firstStart) / SLOT_MINUTES) + 1) }, (_, index) => firstStart + index * SLOT_MINUTES)
+  return turns.flatMap((turno) => {
+    const firstStart = turno.start
+    const latestStart = turno.end - Number(duration || 0) - Number(bufferBefore || 0) - Number(bufferAfter || 0)
+    return Array.from({ length: Math.max(0, Math.floor((latestStart - firstStart) / SLOT_MINUTES) + 1) }, (_, index) => firstStart + index * SLOT_MINUTES)
+  })
     .filter((start) => {
       const blockedStart = start - Number(bufferBefore || 0)
       const blockedEnd = start + Number(duration || 0) + Number(bufferAfter || 0)
@@ -80,8 +84,16 @@ export default function AppointmentModal({
       .catch(() => active && setAvailability({ key: availabilityKey, appointments: null }))
     return () => { active = false }
   }, [availabilityKey, form.date, negocioId])
+  useEffect(() => {
+    const input = document.querySelector('.appointment-modal input[type="date"]')
+    const openPicker = (event) => {
+      try { event.currentTarget.showPicker?.() } catch { /* The browser retains the native date input behavior. */ }
+    }
+    input?.addEventListener('click', openPicker)
+    return () => input?.removeEventListener('click', openPicker)
+  }, [])
   const dayAppointments = availability.key === availabilityKey ? availability.appointments : null
-  const availableTimes = dayAppointments === null ? [] : getAvailableTimes(horarios, form.date, form.duration, form.bufferBefore, form.bufferAfter, dayAppointments, form.professionalId, appointment?.id)
+  const availableTimes = dayAppointments === null ? [] : getAvailableTimes(horarios, professionals, form.date, form.duration, form.bufferBefore, form.bufferAfter, dayAppointments, form.professionalId, appointment?.id)
   const selectedTime = availableTimes.includes(form.time) ? form.time : ''
   const totalReserved = form.duration + form.bufferBefore + form.bufferAfter
 

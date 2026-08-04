@@ -13,7 +13,16 @@ public sealed class GuardarEmpleadoRequest
     [MaxLength(100)] public string? Puesto { get; set; }
     [MaxLength(2000)] public string? Biografia { get; set; }
     public bool Activo { get; set; } = true;
+    public List<GuardarHorarioEmpleadoRequest> Horarios { get; set; } = [];
 
     public bool CrearAcceso { get; set; }
     [MinLength(8), MaxLength(100)] public string? Password { get; set; }
+}
+
+public sealed class GuardarHorarioEmpleadoRequest
+{
+    [Range(0, 6)] public short DiaSemana { get; set; }
+    public TimeOnly? IniciaA { get; set; }
+    public TimeOnly? TerminaA { get; set; }
+    public bool Activo { get; set; }
 }

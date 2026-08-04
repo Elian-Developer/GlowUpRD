@@ -12,6 +12,13 @@ public sealed class ActualizarNegocioRequest
     [MaxLength(500)] public string? LogoUrl { get; set; }
     [Required] public ActualizarSucursalPrincipalRequest SucursalPrincipal { get; set; } = null!;
     [Required, MinLength(7)] public List<ActualizarHorarioNegocioRequest> Horarios { get; set; } = [];
+    public List<ActualizarFeriadoNegocioRequest> Feriados { get; set; } = [];
+}
+
+public sealed class ActualizarFeriadoNegocioRequest
+{
+    public DateOnly Fecha { get; set; }
+    [Required, MaxLength(150)] public string Nombre { get; set; } = null!;
 }
 
 public sealed class ActualizarSucursalPrincipalRequest

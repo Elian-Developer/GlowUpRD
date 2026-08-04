@@ -24,6 +24,8 @@ public partial class GlowUpDbContext : DbContext
 
     public virtual DbSet<Empleado> Empleados { get; set; }
 
+    public virtual DbSet<FeriadoNegocio> FeriadosNegocios { get; set; }
+
     public virtual DbSet<HorariosEmpleado> HorariosEmpleados { get; set; }
 
     public virtual DbSet<HorariosNegocio> HorariosNegocios { get; set; }
@@ -372,7 +374,7 @@ public partial class GlowUpDbContext : DbContext
 
             entity.ToTable("horarios_empleado");
 
-            entity.HasIndex(e => new { e.EmpleadoId, e.DiaSemana }, "horarios_empleado_empleado_id_dia_semana_key").IsUnique();
+            entity.HasIndex(e => new { e.EmpleadoId, e.DiaSemana, e.IniciaA, e.TerminaA }, "horarios_empleado_empleado_id_dia_semana_inicia_a_termina_a_key").IsUnique();
 
             entity.HasIndex(e => e.EmpleadoId, "idx_horarios_empleado_empleado");
 
@@ -391,6 +393,22 @@ public partial class GlowUpDbContext : DbContext
                 .HasForeignKey(d => d.EmpleadoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("horarios_empleado_empleado_id_fkey");
+        });
+
+        modelBuilder.Entity<FeriadoNegocio>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("feriados_negocio_pkey");
+            entity.ToTable("feriados_negocio");
+            entity.HasIndex(e => new { e.NegocioId, e.Fecha }, "feriados_negocio_negocio_id_fecha_key").IsUnique();
+            entity.HasIndex(e => e.NegocioId, "idx_feriados_negocio_negocio");
+            entity.Property(e => e.Id).UseIdentityAlwaysColumn().HasColumnName("id");
+            entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.Fecha).HasColumnName("fecha");
+            entity.Property(e => e.Nombre).HasMaxLength(150).HasColumnName("nombre");
+            entity.Property(e => e.CreadoEn).HasDefaultValueSql("now()").HasColumnType("timestamp without time zone").HasColumnName("creado_en");
+            entity.HasOne(e => e.Negocio).WithMany(e => e.FeriadosNegocios)
+                .HasForeignKey(e => e.NegocioId).OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("feriados_negocio_negocio_id_fkey");
         });
 
         modelBuilder.Entity<HorariosNegocio>(entity =>

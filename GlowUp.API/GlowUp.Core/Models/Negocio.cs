@@ -39,6 +39,8 @@ public partial class Negocio
 
     public virtual ICollection<Empleado> Empleados { get; set; } = new List<Empleado>();
 
+    public virtual ICollection<FeriadoNegocio> FeriadosNegocios { get; set; } = new List<FeriadoNegocio>();
+
     public virtual ICollection<MiembrosNegocio> MiembrosNegocios { get; set; } = new List<MiembrosNegocio>();
 
     public virtual ICollection<Notificacion> Notificaciones { get; set; } = new List<Notificacion>();

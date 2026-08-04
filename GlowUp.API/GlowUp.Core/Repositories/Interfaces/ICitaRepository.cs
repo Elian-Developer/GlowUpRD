@@ -11,6 +11,7 @@ public interface ICitaRepository
     Task<Cita?> ObtenerParaEditarAsync(long id, CancellationToken cancellationToken = default);
     Task<List<Servicio>> ObtenerServiciosAsync(long negocioId, IReadOnlyCollection<long> ids, CancellationToken cancellationToken = default);
     Task<Empleado?> ObtenerEmpleadoAsync(long negocioId, long empleadoId, CancellationToken cancellationToken = default);
+    Task<FeriadoNegocio?> ObtenerFeriadoAsync(long negocioId, DateOnly fecha, CancellationToken cancellationToken = default);
     Task<Sucursal?> ObtenerSucursalAsync(long negocioId, long sucursalId, CancellationToken cancellationToken = default);
     Task<Cliente?> ObtenerClienteAsync(long clienteId, CancellationToken cancellationToken = default);
     Task<ClientesNegocio?> ObtenerClienteNegocioAsync(long negocioId, long clienteId, CancellationToken cancellationToken = default);

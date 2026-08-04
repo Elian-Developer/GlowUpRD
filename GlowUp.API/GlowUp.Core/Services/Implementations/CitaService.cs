@@ -142,6 +142,9 @@ public sealed class CitaService : ICitaService
         var clienteNegocio = await _repository.ObtenerClienteNegocioAsync(request.NegocioId, request.ClienteId, cancellationToken);
         if (clienteNegocio is null) return ValidationData.Fail(MaintenanceStatus.Invalid, "El cliente no está asociado a este negocio.");
 
+        var feriado = await _repository.ObtenerFeriadoAsync(request.NegocioId, DateOnly.FromDateTime(request.Inicio), cancellationToken);
+        if (feriado is not null) return ValidationData.Fail(MaintenanceStatus.Invalid, $"El negocio está cerrado por festivo: {feriado.Nombre}.");
+
         var servicios = await _repository.ObtenerServiciosAsync(request.NegocioId, request.ServicioIds, cancellationToken);
         if (servicios.Count != request.ServicioIds.Count) return ValidationData.Fail(MaintenanceStatus.Invalid, "Uno o más servicios no pertenecen al negocio o están inactivos.");
         var fin = request.Inicio.AddMinutes(servicios.Sum(item => item.DuracionMinutos));
@@ -155,8 +158,17 @@ public sealed class CitaService : ICitaService
 
         var apertura = request.Inicio.Date.Add(horario.AbreA.Value.ToTimeSpan());
         var cierre = request.Inicio.Date.Add(horario.CierraA.Value.ToTimeSpan());
-        if (inicioBloqueado < apertura || finBloqueado > cierre)
-            return ValidationData.Fail(MaintenanceStatus.Invalid, "La cita debe estar dentro del horario de atención de la sucursal.");
+        var cabeEnTurno = empleado.HorariosEmpleados.Where(item => item.DiaSemana == (short)request.Inicio.DayOfWeek && item.Activo)
+            .Any(turno =>
+            {
+                var inicioEmpleado = request.Inicio.Date.Add(turno.IniciaA.ToTimeSpan());
+                var finEmpleado = request.Inicio.Date.Add(turno.TerminaA.ToTimeSpan());
+                var inicioDisponible = apertura > inicioEmpleado ? apertura : inicioEmpleado;
+                var finDisponible = cierre < finEmpleado ? cierre : finEmpleado;
+                return inicioBloqueado >= inicioDisponible && finBloqueado <= finDisponible;
+            });
+        if (!cabeEnTurno)
+            return ValidationData.Fail(MaintenanceStatus.Invalid, "La cita y sus buffers deben caber dentro del horario del empleado y la sucursal.");
 
         if (request.Estado is not "cancelled" and not "no_show")
         {

@@ -40,7 +40,11 @@ public sealed class CitaRepository : ICitaRepository
         _context.Servicios.AsNoTracking().Where(servicio => servicio.NegocioId == negocioId && ids.Contains(servicio.Id) && servicio.Activo).ToListAsync(cancellationToken);
 
     public Task<Empleado?> ObtenerEmpleadoAsync(long negocioId, long empleadoId, CancellationToken cancellationToken = default) =>
-        _context.Empleados.AsNoTracking().FirstOrDefaultAsync(empleado => empleado.Id == empleadoId && empleado.NegocioId == negocioId && empleado.Estado == "active", cancellationToken);
+        _context.Empleados.AsNoTracking().Include(empleado => empleado.HorariosEmpleados)
+            .FirstOrDefaultAsync(empleado => empleado.Id == empleadoId && empleado.NegocioId == negocioId && empleado.Estado == "active", cancellationToken);
+
+    public Task<FeriadoNegocio?> ObtenerFeriadoAsync(long negocioId, DateOnly fecha, CancellationToken cancellationToken = default) =>
+        _context.FeriadosNegocios.AsNoTracking().FirstOrDefaultAsync(item => item.NegocioId == negocioId && item.Fecha == fecha, cancellationToken);
 
     public Task<Sucursal?> ObtenerSucursalAsync(long negocioId, long sucursalId, CancellationToken cancellationToken = default) =>
         _context.Sucursales.AsNoTracking().Include(sucursal => sucursal.HorariosNegocios)
@@ -66,7 +70,8 @@ public sealed class CitaRepository : ICitaRepository
         _context.ClientesNegocios.AsNoTracking().Include(item => item.Cliente).Where(item => item.NegocioId == negocioId && item.Estado == "active").OrderBy(item => item.Cliente.Nombre).ToListAsync(cancellationToken);
 
     public Task<List<Empleado>> ObtenerEmpleadosAsync(long negocioId, CancellationToken cancellationToken = default) =>
-        _context.Empleados.AsNoTracking().Where(item => item.NegocioId == negocioId && item.Estado == "active").OrderBy(item => item.Nombre).ToListAsync(cancellationToken);
+        _context.Empleados.AsNoTracking().Include(item => item.HorariosEmpleados)
+            .Where(item => item.NegocioId == negocioId && item.Estado == "active").OrderBy(item => item.Nombre).ToListAsync(cancellationToken);
 
     public Task<List<Servicio>> ObtenerServiciosActivosAsync(long negocioId, CancellationToken cancellationToken = default) =>
         _context.Servicios.AsNoTracking().Where(item => item.NegocioId == negocioId && item.Activo).OrderBy(item => item.Nombre).ToListAsync(cancellationToken);

@@ -69,6 +69,12 @@ public sealed class EmpleadoService : IEmpleadoService
             Estado = request.Activo ? "active" : "inactive",
             CreadoEn = DateTime.UtcNow,
         };
+        var horarios = request.Horarios.Count == 0
+            ? await HorariosDesdeNegocioAsync(request.NegocioId, cancellationToken)
+            : request.Horarios;
+        if (!HorariosValidos(horarios))
+            return MaintenanceResult<EmpleadoResponse>.Fail(MaintenanceStatus.Invalid, "Configura un horario único y válido para cada día del empleado.");
+        empleado.HorariosEmpleados = CrearHorarios(empleado.Id, horarios);
 
         if (request.CrearAcceso)
         {
@@ -110,6 +116,9 @@ public sealed class EmpleadoService : IEmpleadoService
         empleado.Biografia = Normalize(request.Biografia);
         empleado.Estado = request.Activo ? "active" : "inactive";
         empleado.ActualizadoEn = DateTime.UtcNow;
+        if (!HorariosValidos(request.Horarios))
+            return MaintenanceResult<EmpleadoResponse>.Fail(MaintenanceStatus.Invalid, "Configura un horario único y válido para cada día del empleado.");
+        _empleados.ReemplazarHorarios(empleado, CrearHorarios(empleado.Id, request.Horarios));
 
         await _empleados.GuardarCambiosAsync(cancellationToken);
         return await ReloadAsync(empleado.Id, cancellationToken);
@@ -128,6 +137,22 @@ public sealed class EmpleadoService : IEmpleadoService
         return MaintenanceResult<bool>.Ok(true);
     }
 
+    public async Task<int> CompletarHorariosPendientesAsync(CancellationToken cancellationToken = default)
+    {
+        var empleados = await _empleados.ObtenerTodosParaHorariosAsync(cancellationToken);
+        var actualizados = 0;
+        foreach (var empleado in empleados.Where(item => item.HorariosEmpleados.Count == 0))
+        {
+            var horarios = await HorariosDesdeNegocioAsync(empleado.NegocioId, cancellationToken);
+            if (!HorariosValidos(horarios)) continue;
+            empleado.HorariosEmpleados.Clear();
+            foreach (var horario in CrearHorarios(empleado.Id, horarios)) empleado.HorariosEmpleados.Add(horario);
+            actualizados++;
+        }
+        if (actualizados > 0) await _empleados.GuardarCambiosAsync(cancellationToken);
+        return actualizados;
+    }
+
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private async Task<MaintenanceResult<EmpleadoResponse>> ReloadAsync(long id, CancellationToken cancellationToken)
@@ -136,8 +161,33 @@ public sealed class EmpleadoService : IEmpleadoService
         return empleado is null ? MaintenanceResult<EmpleadoResponse>.Fail(MaintenanceStatus.NotFound, "No se pudo recargar el empleado.") : MaintenanceResult<EmpleadoResponse>.Ok(Map(empleado));
     }
 
+    private async Task<List<GuardarHorarioEmpleadoRequest>> HorariosDesdeNegocioAsync(long negocioId, CancellationToken cancellationToken)
+    {
+        var horarios = await _empleados.ObtenerHorariosBaseAsync(negocioId, cancellationToken);
+        return Enumerable.Range(0, 7).Select(dia =>
+        {
+            var horario = horarios.SingleOrDefault(item => item.DiaSemana == dia);
+            return horario is null || horario.Cerrado || !horario.AbreA.HasValue || !horario.CierraA.HasValue
+                ? null
+                : new GuardarHorarioEmpleadoRequest { DiaSemana = (short)dia, Activo = true, IniciaA = horario.AbreA, TerminaA = horario.CierraA };
+        }).Where(item => item is not null).Cast<GuardarHorarioEmpleadoRequest>().ToList();
+    }
+
+    private static bool HorariosValidos(IReadOnlyCollection<GuardarHorarioEmpleadoRequest> horarios) =>
+        horarios.All(item => item.Activo && item.IniciaA.HasValue && item.TerminaA.HasValue && item.IniciaA < item.TerminaA) &&
+        horarios.GroupBy(item => item.DiaSemana).All(turnos => turnos.OrderBy(item => item.IniciaA).Zip(turnos.OrderBy(item => item.IniciaA).Skip(1), (actual, siguiente) => actual.TerminaA <= siguiente.IniciaA).All(valido => valido));
+
+    private static List<HorariosEmpleado> CrearHorarios(long empleadoId, IEnumerable<GuardarHorarioEmpleadoRequest> horarios) => horarios.Select(item => new HorariosEmpleado
+    {
+        EmpleadoId = empleadoId, DiaSemana = item.DiaSemana, Activo = item.Activo,
+        IniciaA = item.IniciaA ?? TimeOnly.MinValue, TerminaA = item.TerminaA ?? TimeOnly.MinValue,
+    }).ToList();
+
     private static EmpleadoResponse Map(Empleado item) => new(
         item.Id, item.NegocioId, item.SucursalId, item.Sucursal?.Nombre,
         item.Nombre, item.Apellido, item.Telefono, item.Correo,
-        item.Puesto, item.Biografia, item.FotoUrl, item.Estado, item.UsuarioId.HasValue);
+        item.Puesto, item.Biografia, item.FotoUrl, item.Estado, item.UsuarioId.HasValue,
+        item.HorariosEmpleados.OrderBy(horario => horario.DiaSemana)
+            .Select(horario => new HorarioEmpleadoResponse(horario.DiaSemana,
+                horario.Activo ? horario.IniciaA : null, horario.Activo ? horario.TerminaA : null, horario.Activo)).ToList());
 }

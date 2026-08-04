@@ -134,6 +134,8 @@ public sealed class NegocioService : INegocioService
 
         if (!HorariosValidos(request.Horarios))
             return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "Configura un horario único y válido para cada día de la semana.");
+        if (!FeriadosValidos(request.Feriados))
+            return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "Cada festivo debe tener una fecha única desde hoy y un nombre válido.");
 
         var sucursalPrincipal = negocio.Sucursales
             .Where(sucursal => sucursal.EsPrincipal)
@@ -141,6 +143,14 @@ public sealed class NegocioService : INegocioService
             .FirstOrDefault();
         if (sucursalPrincipal is null)
             return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "El negocio no tiene una sucursal principal configurada.");
+
+        foreach (var feriado in request.Feriados.Where(item => negocio.FeriadosNegocios.All(actual => actual.Fecha != item.Fecha)))
+        {
+            if (feriado.Fecha < DateOnly.FromDateTime(DateTime.Today))
+                return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Invalid, "Solo puedes agregar festivos desde hoy en adelante.");
+            if (await _negocios.TieneCitasBloqueantesEnFechaAsync(negocioId, feriado.Fecha, cancellationToken))
+                return MaintenanceResult<NegocioDetalleResponse>.Fail(MaintenanceStatus.Conflict, $"No puedes cerrar el {feriado.Fecha:yyyy-MM-dd} porque todavía tiene citas que debes reprogramar o cancelar.");
+        }
 
         negocio.Nombre = request.Nombre.Trim();
         negocio.Rnc = Normalize(request.Rnc);
@@ -175,6 +185,19 @@ public sealed class NegocioService : INegocioService
             horario.Cerrado = horarioRequest.Cerrado;
             horario.AbreA = horarioRequest.Cerrado ? null : horarioRequest.AbreA;
             horario.CierraA = horarioRequest.Cerrado ? null : horarioRequest.CierraA;
+        }
+
+        var fechasSolicitadas = request.Feriados.Select(item => item.Fecha).ToHashSet();
+        _negocios.EliminarFeriados(negocio.FeriadosNegocios.Where(item => !fechasSolicitadas.Contains(item.Fecha)).ToList());
+        foreach (var feriadoRequest in request.Feriados)
+        {
+            var feriado = negocio.FeriadosNegocios.SingleOrDefault(item => item.Fecha == feriadoRequest.Fecha);
+            if (feriado is null)
+            {
+                feriado = new FeriadoNegocio { NegocioId = negocio.Id, Fecha = feriadoRequest.Fecha, CreadoEn = DateTime.UtcNow };
+                negocio.FeriadosNegocios.Add(feriado);
+            }
+            feriado.Nombre = feriadoRequest.Nombre.Trim();
         }
 
         await _negocios.GuardarCambiosAsync(cancellationToken);
@@ -261,6 +284,10 @@ public sealed class NegocioService : INegocioService
         horarios.All(horario => horario.Cerrado ||
             (horario.AbreA.HasValue && horario.CierraA.HasValue && horario.AbreA < horario.CierraA));
 
+    private static bool FeriadosValidos(IReadOnlyCollection<ActualizarFeriadoNegocioRequest> feriados) =>
+        feriados.All(feriado => !string.IsNullOrWhiteSpace(feriado.Nombre)) &&
+        feriados.Select(feriado => feriado.Fecha).Distinct().Count() == feriados.Count;
+
     private static NegocioDetalleResponse Map(Negocio negocio)
     {
         var sucursalPrincipal = negocio.Sucursales
@@ -280,7 +307,9 @@ public sealed class NegocioService : INegocioService
                 .OrderBy(horario => horario.DiaSemana)
                 .Select(horario => new HorarioNegocioResponse(
                     horario.DiaSemana, horario.AbreA, horario.CierraA, horario.Cerrado))
-                .ToList());
+                .ToList(),
+            negocio.FeriadosNegocios.OrderBy(feriado => feriado.Fecha)
+                .Select(feriado => new FeriadoNegocioResponse(feriado.Id, feriado.Fecha, feriado.Nombre)).ToList());
     }
 
     private static MiembroNegocioResponse Map(MiembrosNegocio miembro) =>

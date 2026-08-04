@@ -11,8 +11,10 @@ public interface INegocioRepository
     Task<Negocio?> ObtenerPerfilParaEditarAsync(long id, CancellationToken cancellationToken = default);
     Task<bool> UsuarioEsPropietarioAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default);
     Task<bool> UsuarioTieneAccesoAsync(long usuarioId, long negocioId, CancellationToken cancellationToken = default);
+    Task<bool> TieneCitasBloqueantesEnFechaAsync(long negocioId, DateOnly fecha, CancellationToken cancellationToken = default);
     Task<List<MiembrosNegocio>> ObtenerMiembrosAsync(long negocioId, CancellationToken cancellationToken = default);
     Task RegistrarAsync(Negocio negocio, Usuario propietario, MiembrosNegocio miembro, CancellationToken cancellationToken = default);
     Task AgregarMiembroAsync(Usuario usuario, MiembrosNegocio miembro, CancellationToken cancellationToken = default);
+    void EliminarFeriados(IEnumerable<FeriadoNegocio> feriados);
     Task GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

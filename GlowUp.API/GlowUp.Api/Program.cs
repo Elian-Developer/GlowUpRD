@@ -102,6 +102,15 @@ if (args.Any(argument => string.Equals(argument, "--seed-demo-data", StringCompa
     return;
 }
 
+if (args.Any(argument => string.Equals(argument, "--backfill-employee-hours", StringComparison.OrdinalIgnoreCase)))
+{
+    using var scope = app.Services.CreateScope();
+    var empleados = scope.ServiceProvider.GetRequiredService<IEmpleadoService>();
+    var updated = await empleados.CompletarHorariosPendientesAsync();
+    Console.WriteLine($"Horarios creados para {updated} empleado(s).");
+    return;
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

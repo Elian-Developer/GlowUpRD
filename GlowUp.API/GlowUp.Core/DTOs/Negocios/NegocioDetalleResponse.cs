@@ -7,6 +7,8 @@ public sealed record SucursalPrincipalResponse(
 public sealed record HorarioNegocioResponse(
     short DiaSemana, TimeOnly? AbreA, TimeOnly? CierraA, bool Cerrado);
 
+public sealed record FeriadoNegocioResponse(long Id, DateOnly Fecha, string Nombre);
+
 public sealed record NegocioDetalleResponse(
     long Id,
     string Nombre,
@@ -19,4 +21,5 @@ public sealed record NegocioDetalleResponse(
     string? LogoUrl,
     string Estado,
     SucursalPrincipalResponse SucursalPrincipal,
-    IReadOnlyList<HorarioNegocioResponse> Horarios);
+    IReadOnlyList<HorarioNegocioResponse> Horarios,
+    IReadOnlyList<FeriadoNegocioResponse> Feriados);
