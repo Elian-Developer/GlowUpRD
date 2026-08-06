@@ -32,9 +32,22 @@ export default function ClientModal({
     setForm((current) => ({ ...current, [name]: value }))
   }
 
+  function openBirthDatePicker(event) {
+    try {
+      event.currentTarget.showPicker?.()
+    } catch {
+      // El navegador conserva el comportamiento nativo si no permite abrirlo por código.
+    }
+  }
+
   function submit(event) {
     event.preventDefault()
     onSave(form)
+  }
+
+  function removeClient() {
+    if (!window.confirm(`¿Eliminar a ${form.nombre} ${form.apellido}? Dejará de aparecer en este negocio y no se podrá usar para nuevas citas.`)) return
+    onSave({ ...form, eliminar: true })
   }
 
   return (
@@ -57,7 +70,7 @@ export default function ClientModal({
           </div>
 
           <div className="modal-field-row">
-            <label><span>Fecha de nacimiento</span><input type="date" name="fechaNacimiento" value={form.fechaNacimiento} onChange={update} /></label>
+            <label><span>Fecha de nacimiento</span><input type="date" name="fechaNacimiento" value={form.fechaNacimiento} onChange={update} onClick={openBirthDatePicker} /></label>
             <label>
               <span>Género</span>
               <select name="genero" value={form.genero} onChange={update}>
@@ -68,9 +81,10 @@ export default function ClientModal({
 
           <label><span>Notas</span><textarea name="notas" value={form.notas} onChange={update} rows="3" placeholder="Preferencias, alergias, historial..." /></label>
 
-          {error && <div className="modal-error" role="alert">{error}</div>}
+          {error && <div className="modal-error" role="alert">{error?.message ?? error}</div>}
 
           <footer className="modal-actions">
+            {isEdit && <button className="danger-button" type="button" onClick={removeClient} disabled={saving}>Eliminar</button>}
             <span />
             <button className="secondary-button" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
             <button className="save-button" type="submit" disabled={saving}>{saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear cliente'}</button>

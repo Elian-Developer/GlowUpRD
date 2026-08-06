@@ -2,6 +2,7 @@ using GlowUpRD.API.DTOs.Clientes;
 using GlowUpRD.API.Models;
 using GlowUpRD.API.Repositories.Interfaces;
 using GlowUpRD.API.Services.Interfaces;
+using GlowUpRD.API.Validation;
 
 namespace GlowUpRD.API.Services.Implementations;
 
@@ -38,13 +39,15 @@ public sealed class ClienteService : IClienteService
     {
         if (!await _negocios.UsuarioTieneAccesoAsync(usuarioId, request.NegocioId, cancellationToken))
             return MaintenanceResult<ClienteResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
+        if (!InputRules.IsValidBirthDate(request.FechaNacimiento, DateOnly.FromDateTime(DateTime.Today)))
+            return MaintenanceResult<ClienteResponse>.Fail(MaintenanceStatus.Invalid, "fechaNacimiento", "INVALID_BIRTH_DATE", "La fecha de nacimiento no puede ser posterior a hoy ni anterior a 120 años.");
 
         var cliente = new Cliente
         {
-            Nombre = request.Nombre.Trim(),
-            Apellido = request.Apellido.Trim(),
-            Telefono = Normalize(request.Telefono),
-            Correo = Normalize(request.Correo),
+            Nombre = InputNormalizer.RequiredText(request.Nombre),
+            Apellido = InputNormalizer.RequiredText(request.Apellido),
+            Telefono = InputNormalizer.NormalizePhone(request.Telefono),
+            Correo = string.IsNullOrWhiteSpace(request.Correo) ? null : InputNormalizer.NormalizeEmail(request.Correo),
             FechaNacimiento = request.FechaNacimiento,
             Genero = request.Genero,
             Notas = Normalize(request.Notas),
@@ -68,11 +71,13 @@ public sealed class ClienteService : IClienteService
         if (relacion.NegocioId != request.NegocioId) return MaintenanceResult<ClienteResponse>.Fail(MaintenanceStatus.Invalid, "No se puede mover el cliente a otro negocio.");
         if (!await _negocios.UsuarioTieneAccesoAsync(usuarioId, request.NegocioId, cancellationToken))
             return MaintenanceResult<ClienteResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
+        if (!InputRules.IsValidBirthDate(request.FechaNacimiento, DateOnly.FromDateTime(DateTime.Today)))
+            return MaintenanceResult<ClienteResponse>.Fail(MaintenanceStatus.Invalid, "fechaNacimiento", "INVALID_BIRTH_DATE", "La fecha de nacimiento no puede ser posterior a hoy ni anterior a 120 años.");
 
-        relacion.Cliente.Nombre = request.Nombre.Trim();
-        relacion.Cliente.Apellido = request.Apellido.Trim();
-        relacion.Cliente.Telefono = Normalize(request.Telefono);
-        relacion.Cliente.Correo = Normalize(request.Correo);
+        relacion.Cliente.Nombre = InputNormalizer.RequiredText(request.Nombre);
+        relacion.Cliente.Apellido = InputNormalizer.RequiredText(request.Apellido);
+        relacion.Cliente.Telefono = InputNormalizer.NormalizePhone(request.Telefono);
+        relacion.Cliente.Correo = string.IsNullOrWhiteSpace(request.Correo) ? null : InputNormalizer.NormalizeEmail(request.Correo);
         relacion.Cliente.FechaNacimiento = request.FechaNacimiento;
         relacion.Cliente.Genero = request.Genero;
         relacion.Cliente.Notas = Normalize(request.Notas);
@@ -90,11 +95,12 @@ public sealed class ClienteService : IClienteService
             return MaintenanceResult<bool>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este cliente.");
 
         relacion.Estado = "inactive";
+        relacion.EliminadoEn = DateTime.UtcNow;
         await _clientes.GuardarCambiosAsync(cancellationToken);
         return MaintenanceResult<bool>.Ok(true);
     }
 
-    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? Normalize(string? value) => InputNormalizer.OptionalText(value);
 
     private async Task<MaintenanceResult<ClienteResponse>> ReloadAsync(long id, CancellationToken cancellationToken)
     {

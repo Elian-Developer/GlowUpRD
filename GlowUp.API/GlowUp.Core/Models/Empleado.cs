@@ -33,9 +33,15 @@ public partial class Empleado
 
     public DateTime? ActualizadoEn { get; set; }
 
+    // Conserva el historial de citas y ausencias, pero excluye al empleado de
+    // los directorios y catálogos operativos.
+    public DateTime? EliminadoEn { get; set; }
+
     public virtual ICollection<AusenciasEmpleado> AusenciasEmpleados { get; set; } = new List<AusenciasEmpleado>();
 
     public virtual ICollection<Cita> Cita { get; set; } = new List<Cita>();
+
+    public virtual ICollection<EmpleadoSucursal> EmpleadosSucursales { get; set; } = new List<EmpleadoSucursal>();
 
     public virtual ICollection<HorariosEmpleado> HorariosEmpleados { get; set; } = new List<HorariosEmpleado>();
 

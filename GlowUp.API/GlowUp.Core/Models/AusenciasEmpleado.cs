@@ -15,6 +15,8 @@ public partial class AusenciasEmpleado
 
     public string? Motivo { get; set; }
 
+    public string Tipo { get; set; } = null!;
+
     public string Estado { get; set; } = null!;
 
     public DateTime CreadoEn { get; set; }

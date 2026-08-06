@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  cerrarSesion,
+  cerrarSesionEnServidor,
   guardarSesion,
   iniciarSesion,
   iniciarSesionConGoogle,
@@ -25,6 +25,7 @@ const initialRegister = {
   apellido: '',
   correo: '',
   password: '',
+  confirmPassword: '',
 }
 
 const tiposNegocio = [
@@ -45,6 +46,7 @@ function buildRegistrarNegocioPayload(data) {
     apellidoPropietario: data.apellido.trim(),
     correoPropietario: data.correo.trim(),
     password: data.password,
+    confirmarPassword: data.confirmPassword,
   }
 }
 
@@ -217,13 +219,17 @@ function App() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (!isLogin && registerData.password !== registerData.confirmPassword) {
+      setFeedback({ type: 'error', message: 'Las contraseñas no coinciden.' })
+      return
+    }
     setLoading(true)
     setFeedback(null)
 
     try {
       const response = isLogin
-        ? await iniciarSesion({ correo: loginData.correo.trim(), password: loginData.password })
-        : await registrarNegocioYPropietario(buildRegistrarNegocioPayload(registerData))
+        ? await iniciarSesion({ correo: loginData.correo.trim(), password: loginData.password, recordarSesion: rememberMe })
+        : await registrarNegocioYPropietario({ ...buildRegistrarNegocioPayload(registerData), recordarSesion: rememberMe })
       guardarSesion(response, rememberMe)
       setSession(response)
     } catch (error) {
@@ -237,7 +243,7 @@ function App() {
     setLoading(true)
     setFeedback(null)
     try {
-      const response = await iniciarSesionConGoogle(credential)
+      const response = await iniciarSesionConGoogle(credential, rememberMe)
       guardarSesion(response, rememberMe)
       setSession(response)
     } catch (error) {
@@ -247,8 +253,19 @@ function App() {
     }
   }
 
-  function closeSession() {
-    cerrarSesion()
+  useEffect(() => {
+    const endSession = () => setSession(null)
+    const refreshSession = (event) => setSession(event.detail)
+    window.addEventListener('glowup:session-ended', endSession)
+    window.addEventListener('glowup:session-refreshed', refreshSession)
+    return () => {
+      window.removeEventListener('glowup:session-ended', endSession)
+      window.removeEventListener('glowup:session-refreshed', refreshSession)
+    }
+  }, [])
+
+  async function closeSession() {
+    await cerrarSesionEnServidor()
     setSession(null)
     setLoginData(initialLogin)
     setFeedback(null)
@@ -377,6 +394,16 @@ function App() {
                     </button>
                   </span>
                 </label>
+
+                {!isLogin && <label className="field">
+                  <span>Confirmar contraseña</span>
+                  <span className="password-input">
+                    <input type={showPassword ? 'text' : 'password'} name="confirmPassword" value={registerData.confirmPassword} onChange={updateField} placeholder="Repite tu contraseña" autoComplete="new-password" minLength="8" maxLength="100" required />
+                    <button type="button" className="eye-button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+                      <EyeIcon hidden={showPassword} />
+                    </button>
+                  </span>
+                </label>}
 
                 {isLogin && (
                   <div className="form-options">

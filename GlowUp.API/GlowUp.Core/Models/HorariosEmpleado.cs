@@ -9,6 +9,8 @@ public partial class HorariosEmpleado
 
     public long EmpleadoId { get; set; }
 
+    public long SucursalId { get; set; }
+
     public short DiaSemana { get; set; }
 
     public TimeOnly IniciaA { get; set; }
@@ -18,4 +20,6 @@ public partial class HorariosEmpleado
     public bool Activo { get; set; }
 
     public virtual Empleado Empleado { get; set; } = null!;
+
+    public virtual Sucursal Sucursal { get; set; } = null!;
 }

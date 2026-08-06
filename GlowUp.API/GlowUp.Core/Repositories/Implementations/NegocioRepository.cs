@@ -41,7 +41,7 @@ public sealed class NegocioRepository : INegocioRepository
             (negocio.UsuarioPropietarioId == usuarioId || negocio.MiembrosNegocios.Any(member => member.UsuarioId == usuarioId && member.Estado == "active")), cancellationToken);
 
     public Task<bool> TieneCitasBloqueantesEnFechaAsync(long negocioId, DateOnly fecha, CancellationToken cancellationToken = default) =>
-        _context.Citas.AnyAsync(cita => cita.NegocioId == negocioId && cita.FechaCita == fecha &&
+        _context.Citas.AnyAsync(cita => cita.NegocioId == negocioId && cita.EliminadoEn == null && cita.FechaCita == fecha &&
             (cita.Estado == "pending" || cita.Estado == "confirmed" || cita.Estado == "completed"), cancellationToken);
 
     public Task<List<MiembrosNegocio>> ObtenerMiembrosAsync(long negocioId, CancellationToken cancellationToken = default) =>

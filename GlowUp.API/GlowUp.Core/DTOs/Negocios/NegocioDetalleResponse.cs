@@ -22,4 +22,5 @@ public sealed record NegocioDetalleResponse(
     string Estado,
     SucursalPrincipalResponse SucursalPrincipal,
     IReadOnlyList<HorarioNegocioResponse> Horarios,
-    IReadOnlyList<FeriadoNegocioResponse> Feriados);
+    IReadOnlyList<FeriadoNegocioResponse> Feriados,
+    IReadOnlyList<SucursalResumenResponse> Sucursales);

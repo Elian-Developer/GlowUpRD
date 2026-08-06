@@ -18,7 +18,7 @@ public sealed class ReporteService : IReporteService
         _negocios = negocios;
     }
 
-    public async Task<MaintenanceResult<ReporteResponse>> ObtenerAsync(long usuarioId, long negocioId, DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceResult<ReporteResponse>> ObtenerAsync(long usuarioId, long negocioId, DateOnly desde, DateOnly hasta, long? sucursalId, CancellationToken cancellationToken = default)
     {
         if (hasta < desde || hasta.DayNumber - desde.DayNumber > 62)
             return MaintenanceResult<ReporteResponse>.Fail(MaintenanceStatus.Invalid, "El rango debe estar entre 1 y 63 días.");
@@ -26,15 +26,14 @@ public sealed class ReporteService : IReporteService
             return MaintenanceResult<ReporteResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
 
         var negocio = await _negocios.ObtenerPerfilAsync(negocioId, cancellationToken);
-        var sucursalPrincipal = negocio?.Sucursales.FirstOrDefault(sucursal => sucursal.EsPrincipal);
-        if (sucursalPrincipal is null)
+        var sucursales = negocio?.Sucursales.Where(sucursal => sucursal.Estado == "active" && (!sucursalId.HasValue || sucursal.Id == sucursalId.Value)).ToList() ?? [];
+        if (sucursales.Count == 0)
             return MaintenanceResult<ReporteResponse>.Fail(MaintenanceStatus.Invalid, "El negocio no tiene una sucursal principal configurada.");
-
-        var horariosPorDia = sucursalPrincipal.HorariosNegocios.ToDictionary(item => item.DiaSemana);
-        var empleadosActivos = await _citas.ObtenerEmpleadosAsync(negocioId, cancellationToken);
-        var citas = await _citas.BuscarAsync(negocioId, desde, hasta, null, null, cancellationToken);
+        var empleadosActivos = await _citas.ObtenerEmpleadosAsync(negocioId, sucursalId, cancellationToken);
+        var citas = await _citas.BuscarAsync(negocioId, desde, hasta, sucursalId, null, cancellationToken);
         var realizadas = citas.Where(cita => cita.Estado is "confirmed" or "completed").ToList();
-        var fechasFestivas = negocio!.FeriadosNegocios.Select(item => item.Fecha).ToHashSet();
+        var festivosPorSucursal = negocio!.FeriadosNegocios.GroupBy(item => item.SucursalId)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.Fecha).ToHashSet());
 
         var ingresos = realizadas.Sum(cita => cita.Total);
         var confirmadas = realizadas.Count;
@@ -43,10 +42,11 @@ public sealed class ReporteService : IReporteService
 
         var diasAbiertos = Enumerable.Range(0, hasta.DayNumber - desde.DayNumber + 1)
             .Select(offset => desde.AddDays(offset))
-            .Where(fecha => HorarioAbierto(horariosPorDia, fecha) && !fechasFestivas.Contains(fecha))
+            .Where(fecha => sucursales.Any(sucursal => SucursalAbierta(sucursal, festivosPorSucursal, fecha)))
             .ToList();
         var minutosDisponiblesPorDia = diasAbiertos.ToDictionary(fecha => fecha, fecha =>
-            empleadosActivos.Sum(empleado => MinutosDisponibles(empleado, horariosPorDia[(short)fecha.DayOfWeek], fecha)));
+            sucursales.Where(sucursal => SucursalAbierta(sucursal, festivosPorSucursal, fecha)).Sum(sucursal =>
+                empleadosActivos.Sum(empleado => MinutosDisponibles(empleado, HorarioDeSucursal(sucursal, fecha)!, fecha, sucursal.Id))));
         var minutosOcupadosPorDia = realizadas.Where(cita => minutosDisponiblesPorDia.ContainsKey(cita.FechaCita))
             .GroupBy(cita => cita.FechaCita)
             .ToDictionary(grupo => grupo.Key, grupo => grupo.Sum(MinutosBloqueados));
@@ -68,7 +68,9 @@ public sealed class ReporteService : IReporteService
         var empleados = empleadosActivos.Select(empleado =>
         {
             var citasEmpleado = realizadas.Where(cita => cita.EmpleadoId == empleado.Id).ToList();
-            var capacidadEmpleado = diasAbiertos.Sum(fecha => MinutosDisponibles(empleado, horariosPorDia[(short)fecha.DayOfWeek], fecha));
+            var capacidadEmpleado = diasAbiertos.Sum(fecha => sucursales
+                .Where(sucursal => SucursalAbierta(sucursal, festivosPorSucursal, fecha))
+                .Sum(sucursal => MinutosDisponibles(empleado, HorarioDeSucursal(sucursal, fecha)!, fecha, sucursal.Id)));
             var ocupacionEmpleado = capacidadEmpleado == 0 ? 0 : Math.Min(100, (int)Math.Round(citasEmpleado.Sum(MinutosBloqueados) * 100m / capacidadEmpleado));
             return new ReporteEmpleadoResponse(empleado.Id, $"{empleado.Nombre} {empleado.Apellido}", citasEmpleado.Count, citasEmpleado.Sum(cita => cita.Total), ocupacionEmpleado);
         })
@@ -88,8 +90,8 @@ public sealed class ReporteService : IReporteService
         var tasaRetencion = clientesAtendidos.Count == 0 ? 0 :
             (int)Math.Round(clientesAtendidos.Count(clienteId => clientesHistoricos.Contains(clienteId)) * 100m / clientesAtendidos.Count);
         var clientesNuevos = await _clientes.ContarNuevosAsync(negocioId, desde, hasta, cancellationToken);
-        var capacidad = minutosDisponiblesPorDia.Values.Sum();
-        var minutosOcupados = minutosOcupadosPorDia.Values.Sum();
+        var capacidad = minutosDisponiblesPorDia.Values.Sum(value => value);
+        var minutosOcupados = minutosOcupadosPorDia.Values.Sum(value => value);
         var ocupacionAgenda = capacidad == 0 ? 0 : Math.Min(100, (int)Math.Round(minutosOcupados * 100m / capacidad));
         var tasaCancelacion = citas.Count == 0 ? 0 : (int)Math.Round(citas.Count(cita => cita.Estado == "cancelled") * 100m / citas.Count);
         var tasaNoConfirmadas = citas.Count == 0 ? 0 : (int)Math.Round(citas.Count(cita => cita.Estado == "pending") * 100m / citas.Count);
@@ -102,21 +104,35 @@ public sealed class ReporteService : IReporteService
             ocupacionAgenda, tasaCancelacion, tasaNoConfirmadas, evolucion, empleados, servicios, estados));
     }
 
-    private static bool HorarioAbierto(IReadOnlyDictionary<short, HorariosNegocio> horariosPorDia, DateOnly fecha) =>
-        horariosPorDia.TryGetValue((short)fecha.DayOfWeek, out var horario) && !horario.Cerrado &&
-        horario.AbreA.HasValue && horario.CierraA.HasValue && horario.CierraA > horario.AbreA;
+    private static HorariosNegocio? HorarioDeSucursal(Sucursal sucursal, DateOnly fecha) =>
+        sucursal.HorariosNegocios.SingleOrDefault(item => item.DiaSemana == (short)fecha.DayOfWeek);
 
-    private static decimal MinutosDisponibles(Empleado empleado, HorariosNegocio horarioNegocio, DateOnly fecha)
+    private static bool SucursalAbierta(Sucursal sucursal, IReadOnlyDictionary<long, HashSet<DateOnly>> festivosPorSucursal, DateOnly fecha)
     {
-        return empleado.HorariosEmpleados.Where(item => item.DiaSemana == (short)fecha.DayOfWeek && item.Activo).Sum(horarioEmpleado =>
+        var horario = HorarioDeSucursal(sucursal, fecha);
+        return horario is not null && !horario.Cerrado && !festivosPorSucursal.GetValueOrDefault(sucursal.Id, []).Contains(fecha) &&
+        horario.AbreA.HasValue && horario.CierraA.HasValue && horario.CierraA > horario.AbreA;
+    }
+
+    private static decimal MinutosDisponibles(Empleado empleado, HorariosNegocio horarioNegocio, DateOnly fecha, long sucursalId)
+    {
+        return empleado.HorariosEmpleados.Where(item => item.SucursalId == sucursalId && item.DiaSemana == (short)fecha.DayOfWeek && item.Activo).Sum(horarioEmpleado =>
         {
             var inicio = horarioNegocio.AbreA!.Value > horarioEmpleado.IniciaA ? horarioNegocio.AbreA.Value : horarioEmpleado.IniciaA;
             var fin = horarioNegocio.CierraA!.Value < horarioEmpleado.TerminaA ? horarioNegocio.CierraA.Value : horarioEmpleado.TerminaA;
-            return fin > inicio ? (decimal)(fin - inicio).TotalMinutes : 0;
+            if (fin <= inicio) return 0;
+
+            var inicioTurno = fecha.ToDateTime(inicio);
+            var finTurno = fecha.ToDateTime(fin);
+            var minutosAusentes = empleado.AusenciasEmpleados.Where(ausencia => ausencia.Estado == "scheduled" && ausencia.IniciaEn < finTurno && inicioTurno < ausencia.TerminaEn)
+                .Sum(ausencia => (decimal)(
+                    (ausencia.TerminaEn < finTurno ? ausencia.TerminaEn : finTurno) -
+                    (ausencia.IniciaEn > inicioTurno ? ausencia.IniciaEn : inicioTurno)).TotalMinutes);
+            return Math.Max(0, (decimal)(fin - inicio).TotalMinutes - minutosAusentes);
         });
     }
 
     private static decimal MinutosBloqueados(Cita cita) =>
         (decimal)(cita.Fin - cita.Inicio).TotalMinutes +
-        cita.ServiciosCita.Sum(servicio => servicio.Servicio.BufferAntesMinutos + servicio.Servicio.BufferDespuesMinutos);
+        cita.ServiciosCita.Sum(servicio => servicio.BufferAntesMinutos + servicio.BufferDespuesMinutos);
 }

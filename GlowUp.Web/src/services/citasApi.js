@@ -4,8 +4,10 @@ export function obtenerNegocios() {
   return apiRequest('/api/citas/negocios')
 }
 
-export function obtenerCatalogos(negocioId) {
-  return apiRequest(`/api/citas/catalogos?negocioId=${negocioId}`)
+export function obtenerCatalogos(negocioId, sucursalId) {
+  const params = new URLSearchParams({ negocioId: String(negocioId) })
+  if (sucursalId) params.set('sucursalId', String(sucursalId))
+  return apiRequest(`/api/citas/catalogos?${params.toString()}`)
 }
 
 export function buscarCitas({ negocioId, desde, hasta, sucursalId, empleadoId }) {

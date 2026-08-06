@@ -39,5 +39,7 @@ public partial class Usuario
 
     public virtual ICollection<RegistroAuditoria> RegistrosAuditoria { get; set; } = new List<RegistroAuditoria>();
 
+    public virtual ICollection<TokenActualizacion> TokensActualizacion { get; set; } = new List<TokenActualizacion>();
+
     public virtual ICollection<UsuariosRole> UsuariosRoles { get; set; } = new List<UsuariosRole>();
 }

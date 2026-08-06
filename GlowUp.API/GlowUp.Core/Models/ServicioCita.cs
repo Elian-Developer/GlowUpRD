@@ -17,6 +17,10 @@ public partial class ServicioCita
 
     public decimal Precio { get; set; }
 
+    public int BufferAntesMinutos { get; set; }
+
+    public int BufferDespuesMinutos { get; set; }
+
     public virtual Cita Cita { get; set; } = null!;
 
     public virtual Servicio Servicio { get; set; } = null!;

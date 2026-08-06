@@ -4,5 +4,5 @@ namespace GlowUpRD.API.Services.Interfaces;
 
 public interface IReporteService
 {
-    Task<MaintenanceResult<ReporteResponse>> ObtenerAsync(long usuarioId, long negocioId, DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<ReporteResponse>> ObtenerAsync(long usuarioId, long negocioId, DateOnly desde, DateOnly hasta, long? sucursalId, CancellationToken cancellationToken = default);
 }

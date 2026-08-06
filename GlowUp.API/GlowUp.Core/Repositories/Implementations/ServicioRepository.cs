@@ -16,21 +16,23 @@ public sealed class ServicioRepository : IServicioRepository
 
     public Task<List<Servicio>> BuscarAsync(long negocioId, bool incluirInactivos, CancellationToken cancellationToken = default) =>
         _context.Servicios.AsNoTracking().Include(item => item.Categoria)
-            .Where(item => item.NegocioId == negocioId && (incluirInactivos || item.Activo))
+            .Where(item => item.NegocioId == negocioId && item.EliminadoEn == null && (incluirInactivos || item.Activo))
             .OrderBy(item => item.Nombre).ToListAsync(cancellationToken);
 
     public Task<Servicio?> ObtenerAsync(long id, bool tracking, CancellationToken cancellationToken = default)
     {
         var query = _context.Servicios.Include(item => item.Categoria).AsQueryable();
         if (!tracking) query = query.AsNoTracking();
-        return query.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        return query.FirstOrDefaultAsync(item => item.Id == id && item.EliminadoEn == null, cancellationToken);
     }
 
     public Task<bool> CategoriaValidaAsync(long negocioId, long categoriaId, CancellationToken cancellationToken = default) =>
         _context.CategoriasServicios.AnyAsync(item => item.Id == categoriaId && item.NegocioId == negocioId && item.Activo, cancellationToken);
 
     public Task<bool> NombreDuplicadoAsync(long negocioId, string nombre, long? excluirId, CancellationToken cancellationToken = default) =>
-        _context.Servicios.AnyAsync(item => item.NegocioId == negocioId && item.Nombre == nombre && (!excluirId.HasValue || item.Id != excluirId.Value), cancellationToken);
+        _context.Servicios.AnyAsync(item => item.NegocioId == negocioId && item.EliminadoEn == null &&
+            item.Nombre.Trim().ToLower() == nombre.Trim().ToLower() &&
+            (!excluirId.HasValue || item.Id != excluirId.Value), cancellationToken);
 
     public Task<List<CategoriasServicio>> ObtenerCategoriasAsync(long negocioId, CancellationToken cancellationToken = default) =>
         _context.CategoriasServicios.AsNoTracking().Where(item => item.NegocioId == negocioId && item.Activo)

@@ -11,19 +11,21 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
     public EmpleadoRepository(GlowUpDbContext context) => _context = context;
 
     public Task<List<Empleado>> BuscarAsync(long negocioId, bool incluirInactivos, CancellationToken cancellationToken = default) =>
-        _context.Empleados.AsNoTracking().Include(item => item.Sucursal).Include(item => item.HorariosEmpleados)
-            .Where(item => item.NegocioId == negocioId && (incluirInactivos || item.Estado == "active"))
+        _context.Empleados.AsNoTracking().Include(item => item.Sucursal).Include(item => item.HorariosEmpleados).Include(item => item.ServiciosEmpleados)
+            .Include(item => item.EmpleadosSucursales).ThenInclude(item => item.Sucursal)
+            .Where(item => item.NegocioId == negocioId && item.EliminadoEn == null && (incluirInactivos || item.Estado == "active"))
             .OrderBy(item => item.Nombre).ToListAsync(cancellationToken);
 
     public Task<Empleado?> ObtenerAsync(long id, bool tracking, CancellationToken cancellationToken = default)
     {
-        var query = _context.Empleados.Include(item => item.Sucursal).Include(item => item.HorariosEmpleados).AsQueryable();
+        var query = _context.Empleados.Include(item => item.Sucursal).Include(item => item.HorariosEmpleados).Include(item => item.ServiciosEmpleados)
+            .Include(item => item.EmpleadosSucursales).ThenInclude(item => item.Sucursal).AsQueryable();
         if (!tracking) query = query.AsNoTracking();
-        return query.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        return query.FirstOrDefaultAsync(item => item.Id == id && item.EliminadoEn == null, cancellationToken);
     }
 
     public Task<List<Empleado>> ObtenerTodosParaHorariosAsync(CancellationToken cancellationToken = default) =>
-        _context.Empleados.Include(item => item.HorariosEmpleados).ToListAsync(cancellationToken);
+        _context.Empleados.Where(item => item.EliminadoEn == null).Include(item => item.HorariosEmpleados).Include(item => item.EmpleadosSucursales).ToListAsync(cancellationToken);
 
     public async Task<List<HorariosNegocio>> ObtenerHorariosBaseAsync(long negocioId, CancellationToken cancellationToken = default) =>
         await _context.Sucursales.AsNoTracking().Where(item => item.NegocioId == negocioId && item.EsPrincipal)
@@ -49,6 +51,21 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
         _context.HorariosEmpleados.RemoveRange(empleado.HorariosEmpleados);
         _context.HorariosEmpleados.AddRange(horarios);
     }
+
+    public void ReemplazarSucursales(Empleado empleado, IEnumerable<EmpleadoSucursal> sucursales)
+    {
+        _context.EmpleadosSucursales.RemoveRange(empleado.EmpleadosSucursales);
+        _context.EmpleadosSucursales.AddRange(sucursales);
+    }
+
+    public void ReemplazarServicios(Empleado empleado, IEnumerable<ServiciosEmpleado> servicios)
+    {
+        _context.ServiciosEmpleados.RemoveRange(empleado.ServiciosEmpleados);
+        _context.ServiciosEmpleados.AddRange(servicios);
+    }
+
+    public void EliminarHorariosInactivos(Empleado empleado) =>
+        _context.HorariosEmpleados.RemoveRange(empleado.HorariosEmpleados.Where(item => !item.Activo));
 
     public async Task GuardarCambiosAsync(CancellationToken cancellationToken = default) => await _context.SaveChangesAsync(cancellationToken);
 }

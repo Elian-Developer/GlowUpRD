@@ -35,6 +35,8 @@ public partial class Cita
 
     public DateTime? ActualizadoEn { get; set; }
 
+    public DateTime? EliminadoEn { get; set; }
+
     public virtual Cliente Cliente { get; set; } = null!;
 
     public virtual ClientesNegocio? ClienteNegocio { get; set; }

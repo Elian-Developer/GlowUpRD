@@ -4,6 +4,7 @@ using GlowUpRD.API.DTOs.Clientes;
 using GlowUpRD.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using GlowUpRD.API.Extensions;
 
 namespace GlowUpRD.API.Controllers;
 
@@ -53,13 +54,5 @@ public sealed class ClientesController : ControllerBase
     }
 
     private bool TryGetUserId(out long id) => long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub), out id);
-    private ActionResult<T> Convert<T>(MaintenanceResult<T> result) => result.Status switch
-    {
-        MaintenanceStatus.Success => Ok(result.Data),
-        MaintenanceStatus.NotFound => NotFound(Problem(result.Error)),
-        MaintenanceStatus.Forbidden => StatusCode(403, Problem(result.Error)),
-        MaintenanceStatus.Conflict => Conflict(Problem(result.Error)),
-        _ => BadRequest(Problem(result.Error))
-    };
-    private static ProblemDetails Problem(string? title) => new() { Title = title };
+    private ActionResult<T> Convert<T>(MaintenanceResult<T> result) => this.ToApiResult(result);
 }

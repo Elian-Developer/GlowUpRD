@@ -1,6 +1,8 @@
 namespace GlowUpRD.API.DTOs.Empleados;
 
-public sealed record HorarioEmpleadoResponse(short DiaSemana, TimeOnly? IniciaA, TimeOnly? TerminaA, bool Activo);
+public sealed record HorarioEmpleadoResponse(long SucursalId, short DiaSemana, TimeOnly? IniciaA, TimeOnly? TerminaA, bool Activo);
+
+public sealed record EmpleadoSucursalResponse(long SucursalId, string Sucursal, string Estado);
 
 public sealed record EmpleadoResponse(
     long Id,
@@ -16,4 +18,6 @@ public sealed record EmpleadoResponse(
     string? FotoUrl,
     string Estado,
     bool TieneAcceso,
-    IReadOnlyList<HorarioEmpleadoResponse> Horarios);
+    IReadOnlyList<HorarioEmpleadoResponse> Horarios,
+    IReadOnlyList<EmpleadoSucursalResponse> Sucursales,
+    IReadOnlyList<long> ServicioIds);

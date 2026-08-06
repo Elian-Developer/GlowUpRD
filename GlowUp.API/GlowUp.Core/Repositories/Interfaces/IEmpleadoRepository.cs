@@ -12,5 +12,8 @@ public interface IEmpleadoRepository
     Task AgregarAsync(Empleado empleado, CancellationToken cancellationToken = default);
     Task AgregarConUsuarioAsync(Empleado empleado, Usuario usuario, MiembrosNegocio miembro, CancellationToken cancellationToken = default);
     void ReemplazarHorarios(Empleado empleado, IEnumerable<HorariosEmpleado> horarios);
+    void ReemplazarSucursales(Empleado empleado, IEnumerable<EmpleadoSucursal> sucursales);
+    void ReemplazarServicios(Empleado empleado, IEnumerable<ServiciosEmpleado> servicios);
+    void EliminarHorariosInactivos(Empleado empleado);
     Task GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

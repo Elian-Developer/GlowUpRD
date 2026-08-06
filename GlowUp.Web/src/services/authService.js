@@ -105,14 +105,14 @@ export function restablecerPassword(token, nuevaPassword) {
   })
 }
 
-export function iniciarSesionConGoogle(credentialToken) {
+export function iniciarSesionConGoogle(credentialToken, recordarSesion = false) {
   if (AUTH_MODE === 'local') {
     return Promise.reject(new Error('El inicio de sesión con Google no está disponible en el modo de demostración.'))
   }
 
   return apiRequest('/api/autenticacion/google', {
     method: 'POST',
-    body: JSON.stringify({ credentialToken }),
+    body: JSON.stringify({ credentialToken, recordarSesion }),
   })
 }
 
@@ -137,5 +137,31 @@ export function obtenerSesion() {
 }
 
 export function cerrarSesion() {
+  clearStoredSession()
+}
+
+export async function cerrarSesionEnServidor() {
+  if (AUTH_MODE !== 'local') {
+    try {
+      await apiRequest('/api/autenticacion/cerrar-sesion', { method: 'POST', skipSessionRefresh: true })
+    } catch {
+      // El cierre local continúa aunque la API no esté disponible.
+    }
+  }
+  clearStoredSession()
+}
+
+export async function eliminarCuenta(id) {
+  if (AUTH_MODE === 'local') {
+    const users = readDemoUsers().filter((user) => String(user.id) !== String(id))
+    localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users))
+    clearStoredSession()
+    return
+  }
+
+  await apiRequest(`/api/autenticacion/usuarios/${id}/cuenta`, {
+    method: 'DELETE',
+    skipSessionRefresh: true,
+  })
   clearStoredSession()
 }

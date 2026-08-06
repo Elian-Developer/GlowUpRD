@@ -35,7 +35,8 @@ create table usuarios (
     verificado_en       timestamp,
     ultimo_login_en     timestamp,
     creado_en           timestamp not null default now(),
-    actualizado_en      timestamp
+    actualizado_en      timestamp,
+    eliminado_en        timestamp
 );
 
 create unique index correo on usuarios (correo);
@@ -43,6 +44,23 @@ create unique index correo on usuarios (correo);
 create trigger trg_usuarios_actualizado_en
     before update on usuarios
     for each row execute function set_actualizado_en();
+
+-- ---------------------------------------------------------------------------
+-- tokens_actualizacion (rotaciÃ³n de sesiÃ³n; solo se almacena el hash)
+-- ---------------------------------------------------------------------------
+create table tokens_actualizacion (
+    id                  bigint generated always as identity primary key,
+    usuario_id          bigint not null references usuarios (id) on delete cascade,
+    token_hash          varchar(64) not null unique,
+    familia_id          uuid not null,
+    expira_en           timestamp not null,
+    creado_en           timestamp not null default now(),
+    revocado_en         timestamp,
+    persistente         boolean not null default false
+);
+
+create index idx_tokens_actualizacion_usuario_familia on tokens_actualizacion (usuario_id, familia_id);
+create index idx_tokens_actualizacion_expira_en on tokens_actualizacion (expira_en);
 
 -- ---------------------------------------------------------------------------
 -- roles
@@ -114,20 +132,6 @@ create trigger trg_negocios_actualizado_en
     for each row execute function set_actualizado_en();
 
 -- ---------------------------------------------------------------------------
--- feriados_negocio (business_holidays)
--- ---------------------------------------------------------------------------
-create table feriados_negocio (
-    id                  bigint generated always as identity primary key,
-    negocio_id          bigint not null references negocios (id),
-    fecha               date not null,
-    nombre              varchar(150) not null,
-    creado_en           timestamp not null default now(),
-    unique (negocio_id, fecha)
-);
-
-create index idx_feriados_negocio_negocio on feriados_negocio (negocio_id);
-
--- ---------------------------------------------------------------------------
 -- sucursales (branches)
 -- ---------------------------------------------------------------------------
 create table sucursales (
@@ -153,6 +157,22 @@ create index idx_sucursales_negocio on sucursales (negocio_id);
 create trigger trg_sucursales_actualizado_en
     before update on sucursales
     for each row execute function set_actualizado_en();
+
+-- ---------------------------------------------------------------------------
+-- feriados_negocio (branch holidays)
+-- ---------------------------------------------------------------------------
+create table feriados_negocio (
+    id                  bigint generated always as identity primary key,
+    negocio_id          bigint not null references negocios (id),
+    sucursal_id         bigint not null references sucursales (id),
+    fecha               date not null,
+    nombre              varchar(150) not null,
+    creado_en           timestamp not null default now(),
+    unique (sucursal_id, fecha)
+);
+
+create index idx_feriados_negocio_negocio on feriados_negocio (negocio_id);
+create index idx_feriados_negocio_sucursal on feriados_negocio (sucursal_id);
 
 -- ---------------------------------------------------------------------------
 -- horarios_negocio (business_hours)
@@ -229,11 +249,13 @@ create table clientes_negocio (
     estado              text not null default 'active'
                             check (estado in ('active', 'inactive', 'blocked')),
     creado_en           timestamp not null default now(),
+    eliminado_en        timestamp,
     unique (negocio_id, cliente_id)
 );
 
 create index idx_clientes_negocio_negocio on clientes_negocio (negocio_id);
 create index idx_clientes_negocio_cliente on clientes_negocio (cliente_id);
+create index idx_clientes_negocio_eliminado_en on clientes_negocio (eliminado_en);
 
 -- ---------------------------------------------------------------------------
 -- suscripciones_negocio (business_subscriptions)
@@ -279,6 +301,7 @@ create index idx_empleados_sucursal on empleados (sucursal_id);
 create index idx_empleados_negocio on empleados (negocio_id);
 create index idx_empleados_estado on empleados (estado);
 create index idx_empleados_usuario on empleados (usuario_id);
+create index idx_empleados_eliminado_en on empleados (eliminado_en);
 
 create trigger trg_empleados_actualizado_en
     before update on empleados
@@ -290,14 +313,29 @@ create trigger trg_empleados_actualizado_en
 create table horarios_empleado (
     id                  bigint generated always as identity primary key,
     empleado_id         bigint not null references empleados (id),
+    sucursal_id         bigint not null references sucursales (id),
     dia_semana          smallint not null,
     inicia_a            time not null,
     termina_a           time not null,
     activo              boolean not null default true,
-    unique (empleado_id, dia_semana, inicia_a, termina_a)
+    unique (empleado_id, sucursal_id, dia_semana, inicia_a, termina_a)
 );
 
 create index idx_horarios_empleado_empleado on horarios_empleado (empleado_id);
+create index idx_horarios_empleado_sucursal on horarios_empleado (sucursal_id);
+
+-- ---------------------------------------------------------------------------
+-- empleados_sucursales (employee branch assignments)
+-- ---------------------------------------------------------------------------
+create table empleados_sucursales (
+    empleado_id         bigint not null references empleados (id) on delete cascade,
+    sucursal_id         bigint not null references sucursales (id) on delete cascade,
+    estado              text not null default 'active' check (estado in ('active', 'inactive')),
+    creado_en           timestamp not null default now(),
+    primary key (empleado_id, sucursal_id)
+);
+
+create index idx_empleados_sucursales_sucursal on empleados_sucursales (sucursal_id);
 
 -- ---------------------------------------------------------------------------
 -- categorias_servicio (service_categories)
@@ -329,12 +367,14 @@ create table servicios (
     buffer_despues_minutos      integer not null default 0,
     activo                      boolean not null default true,
     creado_en                   timestamp not null default now(),
-    actualizado_en              timestamp
+    actualizado_en              timestamp,
+    eliminado_en                timestamp
 );
 
 create index idx_servicios_activo on servicios (activo);
 create index idx_servicios_negocio on servicios (negocio_id);
 create index idx_servicios_categoria on servicios (categoria_id);
+create index idx_servicios_eliminado_en on servicios (eliminado_en);
 
 create trigger trg_servicios_actualizado_en
     before update on servicios
@@ -360,13 +400,17 @@ create table ausencias_empleado (
     empleado_id         bigint not null references empleados (id),
     inicia_en           timestamp not null,
     termina_en          timestamp not null,
+    tipo                text not null default 'absence'
+                            check (tipo in ('vacation', 'permission', 'absence')),
     motivo              varchar(255),
     estado              text not null default 'scheduled'
                             check (estado in ('scheduled', 'cancelled')),
-    creado_en           timestamp not null default now()
+    creado_en           timestamp not null default now(),
+    check (termina_en > inicia_en)
 );
 
 create index idx_ausencias_empleado_empleado on ausencias_empleado (empleado_id);
+create index idx_ausencias_empleado_rango on ausencias_empleado (empleado_id, inicia_en, termina_en);
 
 -- ---------------------------------------------------------------------------
 -- citas (appointments)
@@ -387,7 +431,8 @@ create table citas (
     notas                   text,
     total                   numeric(10, 2) not null,
     creado_en               timestamp not null default now(),
-    actualizado_en          timestamp
+    actualizado_en          timestamp,
+    eliminado_en            timestamp
 );
 
 create index idx_citas_sucursal on citas (sucursal_id);
@@ -397,6 +442,7 @@ create index idx_citas_cliente on citas (cliente_id);
 create index idx_citas_fecha on citas (fecha_cita);
 create index idx_citas_empleado on citas (empleado_id);
 create index idx_citas_estado on citas (estado);
+create index idx_citas_eliminado_en on citas (eliminado_en);
 create index idx_citas_rango_tiempo on citas (empleado_id, inicio, fin);
 
 create trigger trg_citas_actualizado_en
@@ -412,7 +458,9 @@ create table servicios_cita (
     servicio_id         bigint not null references servicios (id),
     nombre_servicio     varchar(150) not null,
     duracion_minutos    integer not null,
-    precio              numeric(10, 2) not null
+    precio              numeric(10, 2) not null,
+    buffer_antes_minutos integer not null default 0,
+    buffer_despues_minutos integer not null default 0
 );
 
 create index idx_servicios_cita_cita on servicios_cita (cita_id);
@@ -499,5 +547,26 @@ create table registros_auditoria (
 create index idx_registros_auditoria_negocio on registros_auditoria (negocio_id);
 create index idx_registros_auditoria_entidad on registros_auditoria (entidad_nombre, entidad_id);
 create index idx_registros_auditoria_usuario on registros_auditoria (usuario_id);
+
+-- Defensas de integridad de valores que no dependen de la capa de aplicación.
+alter table horarios_negocio add constraint horarios_negocio_dia_semana_check check (dia_semana between 0 and 6);
+alter table horarios_negocio add constraint horarios_negocio_intervalo_check check (
+    (cerrado and abre_a is null and cierra_a is null) or
+    (not cerrado and abre_a is not null and cierra_a is not null and cierra_a > abre_a)
+);
+alter table horarios_empleado add constraint horarios_empleado_dia_semana_check check (dia_semana between 0 and 6);
+alter table horarios_empleado add constraint horarios_empleado_intervalo_check check (termina_a > inicia_a);
+alter table servicios add constraint servicios_valores_check check (duracion_minutos > 0 and precio >= 0 and buffer_antes_minutos >= 0 and buffer_despues_minutos >= 0);
+alter table servicios_cita add constraint servicios_cita_valores_check check (duracion_minutos > 0 and precio >= 0 and buffer_antes_minutos >= 0 and buffer_despues_minutos >= 0);
+alter table citas add constraint citas_intervalo_check check (fin > inicio and fecha_cita = inicio::date and total >= 0);
+alter table pagos add constraint pagos_monto_check check (monto > 0);
+alter table resenas add constraint resenas_calificacion_check check (calificacion between 1 and 5);
+alter table planes_suscripcion add constraint planes_suscripcion_valores_check check (precio_mensual >= 0 and max_sucursales >= 0 and max_empleados >= 0 and max_servicios >= 0);
+alter table sucursales add constraint sucursales_coordenadas_check check (
+    (latitud is null or latitud between -90 and 90) and (longitud is null or longitud between -180 and 180)
+);
+
+-- Se mantienen índices exactos para compatibilidad. Para unicidad insensible a mayúsculas,
+-- ejecutar la auditoría incremental y crear los índices funcionales allí documentados.
 
 commit;

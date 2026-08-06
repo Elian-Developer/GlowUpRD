@@ -29,6 +29,8 @@ public partial class Servicio
 
     public DateTime? ActualizadoEn { get; set; }
 
+    public DateTime? EliminadoEn { get; set; }
+
     public virtual CategoriasServicio? Categoria { get; set; }
 
     public virtual Negocio Negocio { get; set; } = null!;

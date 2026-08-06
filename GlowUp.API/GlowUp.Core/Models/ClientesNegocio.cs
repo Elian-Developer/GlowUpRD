@@ -23,6 +23,8 @@ public partial class ClientesNegocio
 
     public DateTime CreadoEn { get; set; }
 
+    public DateTime? EliminadoEn { get; set; }
+
     public virtual ICollection<Cita> Cita { get; set; } = new List<Cita>();
 
     public virtual Cliente Cliente { get; set; } = null!;

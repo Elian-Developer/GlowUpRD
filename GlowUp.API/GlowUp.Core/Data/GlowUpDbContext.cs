@@ -24,6 +24,8 @@ public partial class GlowUpDbContext : DbContext
 
     public virtual DbSet<Empleado> Empleados { get; set; }
 
+    public virtual DbSet<EmpleadoSucursal> EmpleadosSucursales { get; set; }
+
     public virtual DbSet<FeriadoNegocio> FeriadosNegocios { get; set; }
 
     public virtual DbSet<HorariosEmpleado> HorariosEmpleados { get; set; }
@@ -56,6 +58,8 @@ public partial class GlowUpDbContext : DbContext
 
     public virtual DbSet<SuscripcionesNegocio> SuscripcionesNegocios { get; set; }
 
+    public virtual DbSet<TokenActualizacion> TokensActualizacion { get; set; }
+
     public virtual DbSet<Usuario> Usuarios { get; set; }
 
     public virtual DbSet<UsuariosRole> UsuariosRoles { get; set; }
@@ -64,6 +68,7 @@ public partial class GlowUpDbContext : DbContext
     {
         modelBuilder.Entity<AusenciasEmpleado>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("ausencias_empleado_pkey");
 
             entity.ToTable("ausencias_empleado");
@@ -90,6 +95,9 @@ public partial class GlowUpDbContext : DbContext
             entity.Property(e => e.TerminaEn)
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("termina_en");
+            entity.Property(e => e.Tipo)
+                .HasDefaultValueSql("'absence'::text")
+                .HasColumnName("tipo");
 
             entity.HasOne(d => d.Empleado).WithMany(p => p.AusenciasEmpleados)
                 .HasForeignKey(d => d.EmpleadoId)
@@ -99,6 +107,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<CategoriasServicio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("categorias_servicio_pkey");
 
             entity.ToTable("categorias_servicio");
@@ -130,6 +139,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Cita>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("citas_pkey");
 
             entity.ToTable("citas");
@@ -141,6 +151,8 @@ public partial class GlowUpDbContext : DbContext
             entity.HasIndex(e => e.EmpleadoId, "idx_citas_empleado");
 
             entity.HasIndex(e => e.Estado, "idx_citas_estado");
+
+            entity.HasIndex(e => e.EliminadoEn, "idx_citas_eliminado_en");
 
             entity.HasIndex(e => e.FechaCita, "idx_citas_fecha");
 
@@ -158,6 +170,9 @@ public partial class GlowUpDbContext : DbContext
                 .HasColumnName("actualizado_en");
             entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
             entity.Property(e => e.ClienteNegocioId).HasColumnName("cliente_negocio_id");
+            entity.Property(e => e.EliminadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("eliminado_en");
             entity.Property(e => e.CreadoEn)
                 .HasDefaultValueSql("now()")
                 .HasColumnType("timestamp without time zone")
@@ -211,6 +226,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Cliente>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("clientes_pkey");
 
             entity.ToTable("clientes");
@@ -258,6 +274,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<ClientesNegocio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("clientes_negocio_pkey");
 
             entity.ToTable("clientes_negocio");
@@ -267,6 +284,8 @@ public partial class GlowUpDbContext : DbContext
             entity.HasIndex(e => e.ClienteId, "idx_clientes_negocio_cliente");
 
             entity.HasIndex(e => e.NegocioId, "idx_clientes_negocio_negocio");
+
+            entity.HasIndex(e => e.EliminadoEn, "idx_clientes_negocio_eliminado_en");
 
             entity.Property(e => e.Id)
                 .UseIdentityAlwaysColumn()
@@ -279,6 +298,9 @@ public partial class GlowUpDbContext : DbContext
             entity.Property(e => e.Estado)
                 .HasDefaultValueSql("'active'::text")
                 .HasColumnName("estado");
+            entity.Property(e => e.EliminadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("eliminado_en");
             entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
             entity.Property(e => e.NotasInternas).HasColumnName("notas_internas");
             entity.Property(e => e.PrimeraVisitaEn)
@@ -304,11 +326,14 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Empleado>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("empleados_pkey");
 
             entity.ToTable("empleados");
 
             entity.HasIndex(e => e.Estado, "idx_empleados_estado");
+
+            entity.HasIndex(e => e.EliminadoEn, "idx_empleados_eliminado_en");
 
             entity.HasIndex(e => e.NegocioId, "idx_empleados_negocio");
 
@@ -336,6 +361,9 @@ public partial class GlowUpDbContext : DbContext
             entity.Property(e => e.Estado)
                 .HasDefaultValueSql("'active'::text")
                 .HasColumnName("estado");
+            entity.Property(e => e.EliminadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("eliminado_en");
             entity.Property(e => e.FotoUrl)
                 .HasMaxLength(500)
                 .HasColumnName("foto_url");
@@ -370,11 +398,12 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<HorariosEmpleado>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("horarios_empleado_pkey");
 
             entity.ToTable("horarios_empleado");
 
-            entity.HasIndex(e => new { e.EmpleadoId, e.DiaSemana, e.IniciaA, e.TerminaA }, "horarios_empleado_empleado_id_dia_semana_inicia_a_termina_a_key").IsUnique();
+            entity.HasIndex(e => new { e.EmpleadoId, e.SucursalId, e.DiaSemana, e.IniciaA, e.TerminaA }, "horarios_empleado_empleado_sucursal_dia_inicia_termina_key").IsUnique();
 
             entity.HasIndex(e => e.EmpleadoId, "idx_horarios_empleado_empleado");
 
@@ -386,6 +415,7 @@ public partial class GlowUpDbContext : DbContext
                 .HasColumnName("activo");
             entity.Property(e => e.DiaSemana).HasColumnName("dia_semana");
             entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
             entity.Property(e => e.IniciaA).HasColumnName("inicia_a");
             entity.Property(e => e.TerminaA).HasColumnName("termina_a");
 
@@ -393,26 +423,51 @@ public partial class GlowUpDbContext : DbContext
                 .HasForeignKey(d => d.EmpleadoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("horarios_empleado_empleado_id_fkey");
+            entity.HasOne(d => d.Sucursal).WithMany(p => p.HorariosEmpleados)
+                .HasForeignKey(d => d.SucursalId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("horarios_empleado_sucursal_id_fkey");
+        });
+
+        modelBuilder.Entity<EmpleadoSucursal>(entity =>
+        {
+            entity.Property<uint>("xmin").IsRowVersion();
+            entity.HasKey(e => new { e.EmpleadoId, e.SucursalId }).HasName("empleados_sucursales_pkey");
+            entity.ToTable("empleados_sucursales");
+            entity.HasIndex(e => e.SucursalId, "idx_empleados_sucursales_sucursal");
+            entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
+            entity.Property(e => e.Estado).HasDefaultValueSql("'active'::text").HasColumnName("estado");
+            entity.Property(e => e.CreadoEn).HasDefaultValueSql("now()").HasColumnType("timestamp without time zone").HasColumnName("creado_en");
+            entity.HasOne(d => d.Empleado).WithMany(p => p.EmpleadosSucursales).HasForeignKey(d => d.EmpleadoId).OnDelete(DeleteBehavior.Cascade).HasConstraintName("empleados_sucursales_empleado_id_fkey");
+            entity.HasOne(d => d.Sucursal).WithMany(p => p.EmpleadosSucursales).HasForeignKey(d => d.SucursalId).OnDelete(DeleteBehavior.Cascade).HasConstraintName("empleados_sucursales_sucursal_id_fkey");
         });
 
         modelBuilder.Entity<FeriadoNegocio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("feriados_negocio_pkey");
             entity.ToTable("feriados_negocio");
-            entity.HasIndex(e => new { e.NegocioId, e.Fecha }, "feriados_negocio_negocio_id_fecha_key").IsUnique();
+            entity.HasIndex(e => new { e.SucursalId, e.Fecha }, "feriados_negocio_sucursal_id_fecha_key").IsUnique();
             entity.HasIndex(e => e.NegocioId, "idx_feriados_negocio_negocio");
+            entity.HasIndex(e => e.SucursalId, "idx_feriados_negocio_sucursal");
             entity.Property(e => e.Id).UseIdentityAlwaysColumn().HasColumnName("id");
             entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
+            entity.Property(e => e.SucursalId).HasColumnName("sucursal_id");
             entity.Property(e => e.Fecha).HasColumnName("fecha");
             entity.Property(e => e.Nombre).HasMaxLength(150).HasColumnName("nombre");
             entity.Property(e => e.CreadoEn).HasDefaultValueSql("now()").HasColumnType("timestamp without time zone").HasColumnName("creado_en");
             entity.HasOne(e => e.Negocio).WithMany(e => e.FeriadosNegocios)
                 .HasForeignKey(e => e.NegocioId).OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("feriados_negocio_negocio_id_fkey");
+            entity.HasOne(e => e.Sucursal).WithMany(e => e.FeriadosNegocios)
+                .HasForeignKey(e => e.SucursalId).OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("feriados_negocio_sucursal_id_fkey");
         });
 
         modelBuilder.Entity<HorariosNegocio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("horarios_negocio_pkey");
 
             entity.ToTable("horarios_negocio");
@@ -440,6 +495,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<MiembrosNegocio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("miembros_negocio_pkey");
 
             entity.ToTable("miembros_negocio");
@@ -485,6 +541,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Negocio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("negocios_pkey");
 
             entity.ToTable("negocios");
@@ -538,6 +595,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Notificacion>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("notificaciones_pkey");
 
             entity.ToTable("notificaciones");
@@ -596,6 +654,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Pago>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("pagos_pkey");
 
             entity.ToTable("pagos");
@@ -634,6 +693,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<PlanesSuscripcion>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("planes_suscripcion_pkey");
 
             entity.ToTable("planes_suscripcion");
@@ -674,6 +734,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<RegistroAuditoria>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("registros_auditoria_pkey");
 
             entity.ToTable("registros_auditoria");
@@ -726,6 +787,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Resena>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("resenas_pkey");
 
             entity.ToTable("resenas");
@@ -767,6 +829,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Role>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("roles_pkey");
 
             entity.ToTable("roles");
@@ -790,6 +853,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Servicio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("servicios_pkey");
 
             entity.ToTable("servicios");
@@ -799,6 +863,8 @@ public partial class GlowUpDbContext : DbContext
             entity.HasIndex(e => e.CategoriaId, "idx_servicios_categoria");
 
             entity.HasIndex(e => e.NegocioId, "idx_servicios_negocio");
+
+            entity.HasIndex(e => e.EliminadoEn, "idx_servicios_eliminado_en");
 
             entity.Property(e => e.Id)
                 .UseIdentityAlwaysColumn()
@@ -822,6 +888,9 @@ public partial class GlowUpDbContext : DbContext
                 .HasColumnName("creado_en");
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.DuracionMinutos).HasColumnName("duracion_minutos");
+            entity.Property(e => e.EliminadoEn)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("eliminado_en");
             entity.Property(e => e.NegocioId).HasColumnName("negocio_id");
             entity.Property(e => e.Nombre)
                 .HasMaxLength(150)
@@ -843,6 +912,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<ServicioCita>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("servicios_cita_pkey");
 
             entity.ToTable("servicios_cita");
@@ -855,6 +925,12 @@ public partial class GlowUpDbContext : DbContext
                 .UseIdentityAlwaysColumn()
                 .HasColumnName("id");
             entity.Property(e => e.CitaId).HasColumnName("cita_id");
+            entity.Property(e => e.BufferAntesMinutos)
+                .HasDefaultValue(0)
+                .HasColumnName("buffer_antes_minutos");
+            entity.Property(e => e.BufferDespuesMinutos)
+                .HasDefaultValue(0)
+                .HasColumnName("buffer_despues_minutos");
             entity.Property(e => e.DuracionMinutos).HasColumnName("duracion_minutos");
             entity.Property(e => e.NombreServicio)
                 .HasMaxLength(150)
@@ -877,6 +953,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<ServiciosEmpleado>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => new { e.EmpleadoId, e.ServicioId }).HasName("servicios_empleado_pkey");
 
             entity.ToTable("servicios_empleado");
@@ -903,6 +980,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Sucursal>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("sucursales_pkey");
 
             entity.ToTable("sucursales");
@@ -960,6 +1038,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<SuscripcionesNegocio>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("suscripciones_negocio_pkey");
 
             entity.ToTable("suscripciones_negocio");
@@ -1005,6 +1084,7 @@ public partial class GlowUpDbContext : DbContext
 
         modelBuilder.Entity<Usuario>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => e.Id).HasName("usuarios_pkey");
 
             entity.ToTable("usuarios");
@@ -1047,8 +1127,33 @@ public partial class GlowUpDbContext : DbContext
                 .HasColumnName("verificado_en");
         });
 
+        modelBuilder.Entity<TokenActualizacion>(entity =>
+        {
+            entity.Property<uint>("xmin").IsRowVersion();
+            entity.HasKey(e => e.Id).HasName("tokens_actualizacion_pkey");
+            entity.ToTable("tokens_actualizacion");
+            entity.HasIndex(e => e.TokenHash, "tokens_actualizacion_token_hash_key").IsUnique();
+            entity.HasIndex(e => new { e.UsuarioId, e.FamiliaId }, "idx_tokens_actualizacion_usuario_familia");
+            entity.HasIndex(e => e.ExpiraEn, "idx_tokens_actualizacion_expira_en");
+
+            entity.Property(e => e.Id).UseIdentityAlwaysColumn().HasColumnName("id");
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
+            entity.Property(e => e.TokenHash).HasMaxLength(64).HasColumnName("token_hash");
+            entity.Property(e => e.FamiliaId).HasColumnName("familia_id");
+            entity.Property(e => e.ExpiraEn).HasColumnType("timestamp without time zone").HasColumnName("expira_en");
+            entity.Property(e => e.CreadoEn).HasDefaultValueSql("now()").HasColumnType("timestamp without time zone").HasColumnName("creado_en");
+            entity.Property(e => e.RevocadoEn).HasColumnType("timestamp without time zone").HasColumnName("revocado_en");
+            entity.Property(e => e.Persistente).HasDefaultValue(false).HasColumnName("persistente");
+
+            entity.HasOne(d => d.Usuario).WithMany(p => p.TokensActualizacion)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("tokens_actualizacion_usuario_id_fkey");
+        });
+
         modelBuilder.Entity<UsuariosRole>(entity =>
         {
+            entity.Property<uint>("xmin").IsRowVersion();
             entity.HasKey(e => new { e.UsuarioId, e.RolId }).HasName("usuarios_roles_pkey");
 
             entity.ToTable("usuarios_roles");

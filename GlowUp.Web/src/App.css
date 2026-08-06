@@ -87,7 +87,7 @@ form { display: grid; gap: 18px; }
   background-position: right 14px center;
   background-size: 16px;
 }
-.field select:focus { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2345612e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+.field select:focus { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2345612e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-size: 16px; }
 .password-input { position: relative; display: block; }
 .password-input input { padding-right: 50px; }
 .eye-button { position: absolute; top: 50%; right: 11px; width: 34px; height: 34px; display: grid; place-items: center; transform: translateY(-50%); border: 0; border-radius: 8px; color: #849080; background: transparent; cursor: pointer; }
@@ -157,7 +157,7 @@ form { display: grid; gap: 18px; }
 .field input, .field select { border-color: #d5dde2; border-radius: 10px; color: #172033; background-color: #fff; }
 .field input:focus, .field select:focus { border-color: #318e94; box-shadow: 0 0 0 4px rgba(49, 142, 148, 0.12); }
 .field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667488' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
-.field select:focus { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23318e94' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+.field select:focus { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23318e94' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-size: 16px; }
 .eye-button:hover { color: #1d6670; background: #edf5f6; }
 .checkbox input:checked + span { border-color: #287f86; background: #287f86; }
 .text-button { color: #287f86; }

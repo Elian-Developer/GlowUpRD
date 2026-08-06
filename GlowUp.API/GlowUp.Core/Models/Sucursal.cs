@@ -37,6 +37,12 @@ public partial class Sucursal
 
     public virtual ICollection<Empleado> Empleados { get; set; } = new List<Empleado>();
 
+    public virtual ICollection<EmpleadoSucursal> EmpleadosSucursales { get; set; } = new List<EmpleadoSucursal>();
+
+    public virtual ICollection<FeriadoNegocio> FeriadosNegocios { get; set; } = new List<FeriadoNegocio>();
+
+    public virtual ICollection<HorariosEmpleado> HorariosEmpleados { get; set; } = new List<HorariosEmpleado>();
+
     public virtual ICollection<HorariosNegocio> HorariosNegocios { get; set; } = new List<HorariosNegocio>();
 
     public virtual ICollection<MiembrosNegocio> MiembrosNegocios { get; set; } = new List<MiembrosNegocio>();

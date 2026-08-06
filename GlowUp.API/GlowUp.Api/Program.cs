@@ -5,14 +5,31 @@ using GlowUpRD.API.Repositories.Implementations;
 using GlowUpRD.API.Repositories.Interfaces;
 using GlowUpRD.API.Services.Implementations;
 using GlowUpRD.API.Services.Interfaces;
+using GlowUpRD.API.Validation;
+using GlowUpRD.API.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(item => item.Value?.Errors.Count > 0)
+            .SelectMany(item => item.Value!.Errors.Select(error => new ApiFieldError(
+                ToCamelCase(item.Key),
+                "INVALID_VALUE",
+                string.IsNullOrWhiteSpace(error.ErrorMessage) ? "El valor enviado no tiene un formato válido." : error.ErrorMessage)))
+            .ToList();
+        return new BadRequestObjectResult(new ApiErrorResponse(false, "La información enviada contiene errores.", errors));
+    });
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddCors(options =>
 {
@@ -24,7 +41,8 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .AllowCredentials());
 });
 builder.Services.AddSwaggerGen(options =>
 {
@@ -74,8 +92,10 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IDemoDataService, DemoDataService>();
 builder.Services.AddScoped<IPasswordHasher<Usuario>, PasswordHasher<Usuario>>();
 builder.Services.AddScoped<ICitaRepository, CitaRepository>();
@@ -86,6 +106,8 @@ builder.Services.AddScoped<INegocioRepository, NegocioRepository>();
 builder.Services.AddScoped<INegocioService, NegocioService>();
 builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
 builder.Services.AddScoped<IEmpleadoService, EmpleadoService>();
+builder.Services.AddScoped<IAusenciaRepository, AusenciaRepository>();
+builder.Services.AddScoped<IAusenciaService, AusenciaService>();
 builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
 builder.Services.AddScoped<IClienteService, ClienteService>();
 builder.Services.AddScoped<IReporteService, ReporteService>();
@@ -107,7 +129,7 @@ if (args.Any(argument => string.Equals(argument, "--backfill-employee-hours", St
     using var scope = app.Services.CreateScope();
     var empleados = scope.ServiceProvider.GetRequiredService<IEmpleadoService>();
     var updated = await empleados.CompletarHorariosPendientesAsync();
-    Console.WriteLine($"Horarios creados para {updated} empleado(s).");
+    Console.WriteLine($"Horarios normalizados para {updated} empleado(s).");
     return;
 }
 
@@ -119,6 +141,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseExceptionHandler();
+
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -126,3 +150,11 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static string ToCamelCase(string value)
+{
+    if (string.IsNullOrEmpty(value) || char.IsLower(value[0])) return value;
+    return char.ToLowerInvariant(value[0]) + value[1..];
+}
+
+public partial class Program { }

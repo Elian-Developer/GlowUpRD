@@ -14,6 +14,9 @@
 # Logs
 *.log
 
+# Private Codex working notes
+.codex/
+
 # Local configuration and credentials
 **/.env
 **/.env.*

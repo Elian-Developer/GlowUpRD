@@ -2,6 +2,7 @@ using GlowUpRD.API.DTOs.Servicios;
 using GlowUpRD.API.Models;
 using GlowUpRD.API.Repositories.Interfaces;
 using GlowUpRD.API.Services.Interfaces;
+using GlowUpRD.API.Validation;
 
 namespace GlowUpRD.API.Services.Implementations;
 
@@ -29,7 +30,7 @@ public sealed class ServicioService : IServicioService
     {
         var error = await ValidateAsync(usuarioId, request, null, cancellationToken);
         if (error is not null) return error;
-        var servicio = new Servicio { NegocioId = request.NegocioId, CategoriaId = request.CategoriaId, Nombre = request.Nombre.Trim(), Descripcion = Normalize(request.Descripcion), DuracionMinutos = request.DuracionMinutos, Precio = request.Precio, BufferAntesMinutos = request.MinutosAntes, BufferDespuesMinutos = request.MinutosDespues, Activo = request.Activo, CreadoEn = DateTime.UtcNow };
+        var servicio = new Servicio { NegocioId = request.NegocioId, CategoriaId = request.CategoriaId, Nombre = InputNormalizer.RequiredText(request.Nombre), Descripcion = Normalize(request.Descripcion), DuracionMinutos = request.DuracionMinutos, Precio = request.Precio, BufferAntesMinutos = request.MinutosAntes, BufferDespuesMinutos = request.MinutosDespues, Activo = request.Activo, CreadoEn = DateTime.UtcNow };
         await _repository.AgregarAsync(servicio, cancellationToken);
         await _repository.GuardarCambiosAsync(cancellationToken);
         return await ReloadAsync(servicio.Id, cancellationToken);
@@ -43,7 +44,7 @@ public sealed class ServicioService : IServicioService
         var error = await ValidateAsync(usuarioId, request, id, cancellationToken);
         if (error is not null) return error;
 
-        servicio.CategoriaId = request.CategoriaId; servicio.Nombre = request.Nombre.Trim(); servicio.Descripcion = Normalize(request.Descripcion);
+        servicio.CategoriaId = request.CategoriaId; servicio.Nombre = InputNormalizer.RequiredText(request.Nombre); servicio.Descripcion = Normalize(request.Descripcion);
         servicio.DuracionMinutos = request.DuracionMinutos; servicio.Precio = request.Precio; servicio.BufferAntesMinutos = request.MinutosAntes;
         servicio.BufferDespuesMinutos = request.MinutosDespues; servicio.Activo = request.Activo; servicio.ActualizadoEn = DateTime.UtcNow;
         await _repository.GuardarCambiosAsync(cancellationToken);
@@ -55,7 +56,7 @@ public sealed class ServicioService : IServicioService
         var servicio = await _repository.ObtenerAsync(id, true, cancellationToken);
         if (servicio is null) return MaintenanceResult<bool>.Fail(MaintenanceStatus.NotFound, "El servicio no existe.");
         if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, servicio.NegocioId, cancellationToken)) return MaintenanceResult<bool>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este servicio.");
-        servicio.Activo = false; servicio.ActualizadoEn = DateTime.UtcNow;
+        servicio.Activo = false; servicio.EliminadoEn = DateTime.UtcNow; servicio.ActualizadoEn = DateTime.UtcNow;
         await _repository.GuardarCambiosAsync(cancellationToken);
         return MaintenanceResult<bool>.Ok(true);
     }
@@ -70,12 +71,13 @@ public sealed class ServicioService : IServicioService
     private async Task<MaintenanceResult<ServicioResponse>?> ValidateAsync(long usuarioId, GuardarServicioRequest request, long? excludeId, CancellationToken cancellationToken)
     {
         if (!await _repository.UsuarioTieneAccesoAsync(usuarioId, request.NegocioId, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Forbidden, "No tienes acceso a este negocio.");
+        if (!InputRules.HasCurrencyScale(request.Precio)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Invalid, "precio", "INVALID_CURRENCY_SCALE", "El precio solo puede tener hasta dos decimales.");
         if (request.CategoriaId.HasValue && !await _repository.CategoriaValidaAsync(request.NegocioId, request.CategoriaId.Value, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Invalid, "La categoría no pertenece al negocio o está inactiva.");
-        if (await _repository.NombreDuplicadoAsync(request.NegocioId, request.Nombre.Trim(), excludeId, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Conflict, "Ya existe un servicio con ese nombre.");
+        if (await _repository.NombreDuplicadoAsync(request.NegocioId, InputNormalizer.RequiredText(request.Nombre), excludeId, cancellationToken)) return MaintenanceResult<ServicioResponse>.Fail(MaintenanceStatus.Conflict, "nombre", "DUPLICATE_SERVICE_NAME", "Ya existe un servicio con ese nombre en este negocio. Utiliza un nombre diferente.");
         return null;
     }
 
-    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? Normalize(string? value) => InputNormalizer.OptionalText(value);
     private async Task<MaintenanceResult<ServicioResponse>> ReloadAsync(long id, CancellationToken cancellationToken)
     {
         var servicio = await _repository.ObtenerAsync(id, false, cancellationToken);

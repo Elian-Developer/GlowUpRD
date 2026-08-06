@@ -15,11 +15,14 @@ public sealed record ActualizarUsuarioResultado(
 
 public interface IAuthService
 {
-    Task<LoginResponse?> IniciarSesionAsync(LoginRequest request, CancellationToken cancellationToken = default);
+    Task<SesionAutenticada?> IniciarSesionAsync(LoginRequest request, CancellationToken cancellationToken = default);
     Task<UsuarioResponse?> ObtenerPorIdAsync(long id, CancellationToken cancellationToken = default);
     Task<ActualizarUsuarioResultado> ActualizarAsync(long id, ActualizarUsuarioRequest request, CancellationToken cancellationToken = default);
     Task<bool> DesactivarAsync(long id, CancellationToken cancellationToken = default);
+    Task<bool> EliminarCuentaAsync(long id, CancellationToken cancellationToken = default);
     Task OlvidePasswordAsync(OlvidePasswordRequest request, CancellationToken cancellationToken = default);
     Task<MaintenanceResult<bool>> RestablecerPasswordAsync(RestablecerPasswordRequest request, CancellationToken cancellationToken = default);
-    Task<MaintenanceResult<LoginResponse>> IniciarSesionConGoogleAsync(GoogleLoginRequest request, CancellationToken cancellationToken = default);
+    Task<MaintenanceResult<SesionAutenticada>> IniciarSesionConGoogleAsync(GoogleLoginRequest request, CancellationToken cancellationToken = default);
+    Task<SesionAutenticada?> RefrescarSesionAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task CerrarSesionAsync(string? refreshToken, CancellationToken cancellationToken = default);
 }

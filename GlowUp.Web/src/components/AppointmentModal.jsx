@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { buscarCitas } from '../services/citasApi'
+import { buscarAusencias } from '../services/ausenciasApi'
+import { obtenerSucursal } from '../services/negociosApi'
 
 const SLOT_MINUTES = 15
 
@@ -23,7 +25,21 @@ function getBusyBlocks(appointments, professionalId, excludeId) {
     }).filter(Boolean)
 }
 
-function getAvailableTimes(horarios, professionals, date, duration, bufferBefore, bufferAfter, appointments, professionalId, excludeId) {
+function getAbsenceBlocks(absences, professionalId, date) {
+  const dayStart = new Date(`${date}T00:00:00`)
+  const dayEnd = new Date(`${date}T00:00:00`)
+  dayEnd.setDate(dayEnd.getDate() + 1)
+  return absences.filter((item) => String(item.empleadoId) === String(professionalId) && item.estado === 'scheduled').map((item) => {
+    const start = new Date(item.iniciaEn); const end = new Date(item.terminaEn)
+    if (start >= dayEnd || end <= dayStart) return null
+    const rangeStart = start > dayStart ? start : dayStart
+    const rangeEnd = end < dayEnd ? end : dayEnd
+    const endMinutes = rangeEnd.getHours() * 60 + rangeEnd.getMinutes()
+    return { start: rangeStart.getHours() * 60 + rangeStart.getMinutes(), end: endMinutes || (rangeEnd.getTime() === dayEnd.getTime() ? 1440 : 0) }
+  }).filter(Boolean)
+}
+
+function getAvailableTimes(horarios, professionals, date, duration, bufferBefore, bufferAfter, appointments, absences, professionalId, excludeId) {
   if (!date) return []
   const day = new Date(`${date}T12:00:00`).getDay()
   const schedule = horarios?.find((item) => Number(item.diaSemana) === day)
@@ -32,15 +48,15 @@ function getAvailableTimes(horarios, professionals, date, duration, bufferBefore
   if (!schedule || schedule.cerrado || opensAt === null || closesAt === null) return []
   const employeeTurns = professionals?.find((item) => String(item.id) === String(professionalId))?.horarios?.filter((item) => Number(item.diaSemana) === day && item.activo) ?? []
   const turns = employeeTurns.length ? employeeTurns.map((turno) => ({ start: Math.max(opensAt, toMinutes(turno.iniciaA) ?? opensAt), end: Math.min(closesAt, toMinutes(turno.terminaA) ?? closesAt) })) : [{ start: opensAt, end: closesAt }]
-  const busyBlocks = getBusyBlocks(appointments, professionalId, excludeId)
+  const busyBlocks = [...getBusyBlocks(appointments, professionalId, excludeId), ...getAbsenceBlocks(absences, professionalId, date)]
   return turns.flatMap((turno) => {
     const firstStart = turno.start
     const latestStart = turno.end - Number(duration || 0) - Number(bufferBefore || 0) - Number(bufferAfter || 0)
     return Array.from({ length: Math.max(0, Math.floor((latestStart - firstStart) / SLOT_MINUTES) + 1) }, (_, index) => firstStart + index * SLOT_MINUTES)
   })
     .filter((start) => {
-      const blockedStart = start - Number(bufferBefore || 0)
-      const blockedEnd = start + Number(duration || 0) + Number(bufferAfter || 0)
+      const blockedStart = start
+      const blockedEnd = start + Number(duration || 0) + Number(bufferBefore || 0) + Number(bufferAfter || 0)
       return !busyBlocks.some((block) => blockedStart < block.end && block.start < blockedEnd)
     }).map(toTime)
 }
@@ -64,6 +80,7 @@ export default function AppointmentModal({
   branches,
   customers,
   professionals,
+  employeeSchedules = [],
   services,
   horarios,
   negocioId,
@@ -75,15 +92,27 @@ export default function AppointmentModal({
 }) {
   const [form, setForm] = useState(() => ({ ...emptyAppointment, ...appointment }))
   const availabilityKey = `${negocioId}-${form.date}`
-  const [availability, setAvailability] = useState({ key: '', appointments: null })
+  const [availability, setAvailability] = useState({ key: '', appointments: null, absences: null })
+  const [branchHours, setBranchHours] = useState({ branchId: '', hours: [] })
   useEffect(() => {
     if (!negocioId || !form.date) return undefined
     let active = true
-    buscarCitas({ negocioId, desde: form.date, hasta: form.date })
-      .then((appointments) => active && setAvailability({ key: availabilityKey, appointments: appointments ?? [] }))
-      .catch(() => active && setAvailability({ key: availabilityKey, appointments: null }))
+    Promise.all([
+      buscarCitas({ negocioId, desde: form.date, hasta: form.date }),
+      buscarAusencias({ negocioId, desde: form.date, hasta: form.date }),
+    ])
+      .then(([appointments, absences]) => active && setAvailability({ key: availabilityKey, appointments: appointments ?? [], absences: absences ?? [] }))
+      .catch(() => active && setAvailability({ key: availabilityKey, appointments: null, absences: null }))
     return () => { active = false }
   }, [availabilityKey, form.date, negocioId])
+  useEffect(() => {
+    if (!negocioId || !form.branchId) return undefined
+    let active = true
+    obtenerSucursal(negocioId, form.branchId)
+      .then((branch) => active && setBranchHours({ branchId: String(form.branchId), hours: branch.horarios ?? [] }))
+      .catch(() => active && setBranchHours({ branchId: String(form.branchId), hours: [] }))
+    return () => { active = false }
+  }, [negocioId, form.branchId])
   useEffect(() => {
     const input = document.querySelector('.appointment-modal input[type="date"]')
     const openPicker = (event) => {
@@ -93,17 +122,32 @@ export default function AppointmentModal({
     return () => input?.removeEventListener('click', openPicker)
   }, [])
   const dayAppointments = availability.key === availabilityKey ? availability.appointments : null
-  const availableTimes = dayAppointments === null ? [] : getAvailableTimes(horarios, professionals, form.date, form.duration, form.bufferBefore, form.bufferAfter, dayAppointments, form.professionalId, appointment?.id)
+  const dayAbsences = availability.key === availabilityKey ? availability.absences : null
+  const branchProfessionals = form.branchId
+    ? employeeSchedules.filter((employee) => employee.activo && employee.sucursalIds?.includes(String(form.branchId))).map((employee) => ({ ...employee, name: `${employee.nombre} ${employee.apellido}`, horarios: employee.horarios.filter((shift) => String(shift.sucursalId) === String(form.branchId)) }))
+    : professionals
+  const activeBranchHours = branchHours.branchId === String(form.branchId) ? branchHours.hours : horarios
+  const availableTimes = dayAppointments === null || dayAbsences === null || branchHours.branchId !== String(form.branchId) ? [] : getAvailableTimes(activeBranchHours, branchProfessionals, form.date, form.duration, form.bufferBefore, form.bufferAfter, dayAppointments, dayAbsences, form.professionalId, appointment?.id)
   const selectedTime = availableTimes.includes(form.time) ? form.time : ''
   const totalReserved = form.duration + form.bufferBefore + form.bufferAfter
+  const selectedProfessional = branchProfessionals.find((professional) => String(professional.id) === String(form.professionalId))
+  const allowedServiceIds = selectedProfessional?.servicioIds ?? []
+  const availableServices = form.professionalId && allowedServiceIds.length > 0
+    ? services.filter((service) => allowedServiceIds.includes(String(service.id)))
+    : services
 
   function update(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: name === 'duration' ? Number(value) : value }))
   }
 
+  function selectBranch(event) {
+    const branchId = event.target.value
+    setForm((current) => ({ ...current, branchId, professionalId: '', time: '', serviceId: '', duration: 60, bufferBefore: 0, bufferAfter: 0 }))
+  }
+
   function selectService(event) {
-    const service = services.find((item) => String(item.id) === event.target.value)
+    const service = availableServices.find((item) => String(item.id) === event.target.value)
     setForm((current) => ({
       ...current,
       serviceId: event.target.value,
@@ -113,8 +157,26 @@ export default function AppointmentModal({
     }))
   }
 
+  function selectProfessional(event) {
+    const professionalId = event.target.value
+    const professional = branchProfessionals.find((item) => String(item.id) === professionalId)
+    const serviceIds = professional?.servicioIds ?? []
+    const canKeepCurrentService = serviceIds.length === 0 || serviceIds.includes(String(form.serviceId))
+    const currentService = canKeepCurrentService ? services.find((item) => String(item.id) === String(form.serviceId)) : null
+    setForm((current) => ({
+      ...current,
+      professionalId,
+      serviceId: currentService ? current.serviceId : '',
+      duration: currentService?.duration ?? 60,
+      bufferBefore: currentService?.bufferBefore ?? 0,
+      bufferAfter: currentService?.bufferAfter ?? 0,
+    }))
+  }
+
   function submit(event) {
     event.preventDefault()
+    const selectedDateTime = new Date(`${form.date}T${form.time}:00`)
+    if (!appointment?.id && !Number.isNaN(selectedDateTime.getTime()) && selectedDateTime < new Date() && !window.confirm('Esta cita tiene una fecha u hora pasada. ¿Deseas crearla de todas formas?')) return
     onSave(form)
   }
 
@@ -129,7 +191,7 @@ export default function AppointmentModal({
         <form onSubmit={submit} className="appointment-form">
           <label>
             <span>Sucursal</span>
-            <select name="branchId" value={form.branchId} onChange={update} required>
+            <select name="branchId" value={form.branchId} onChange={selectBranch} required>
               <option value="">Selecciona una sucursal</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
@@ -146,32 +208,39 @@ export default function AppointmentModal({
           <label>
             <span>Servicio</span>
             <select name="serviceId" value={form.serviceId} onChange={selectService} required>
-              <option value="">Selecciona un servicio</option>
-              {services.map((service) => <option key={service.id} value={service.id}>{service.name} · RD$ {service.price.toLocaleString()}</option>)}
+              <option value="">{form.professionalId && availableServices.length === 0 ? 'Este profesional no tiene servicios asignados' : 'Selecciona un servicio'}</option>
+              {availableServices.map((service) => <option key={service.id} value={service.id}>{service.name} · RD$ {service.price.toLocaleString()}</option>)}
             </select>
           </label>
 
           <label>
             <span>Profesional</span>
-            <select name="professionalId" value={form.professionalId} onChange={update} required>
+            <select name="professionalId" value={form.professionalId} onChange={selectProfessional} required>
               <option value="">Selecciona un profesional</option>
-              {professionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.name}</option>)}
+              {branchProfessionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.name}</option>)}
             </select>
           </label>
 
           <div className="modal-field-row">
             <label><span>Fecha</span><input type="date" name="date" value={form.date} onChange={update} required /></label>
-            <label><span>Hora</span><select name="time" value={selectedTime} onChange={update} required><option value="" disabled>{dayAppointments === null ? 'Cargando disponibilidad...' : availableTimes.length ? 'Selecciona una hora' : 'No hay horarios disponibles'}</option>{availableTimes.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
+            <label><span>Hora</span><select name="time" value={selectedTime} onChange={update} required><option value="" disabled>{dayAppointments === null || branchHours.branchId !== String(form.branchId) ? 'Cargando disponibilidad...' : availableTimes.length ? 'Selecciona una hora' : 'No hay horarios disponibles'}</option>{availableTimes.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
           </div>
 
           <div className="modal-field-row">
-            <div className="appointment-duration-summary"><span>Duración reservada</span><strong>{form.duration} min de servicio</strong><small>{form.bufferBefore || form.bufferAfter ? `Buffer: ${form.bufferBefore} min antes · ${form.bufferAfter} min después` : 'Sin tiempo de buffer'}</small><b>{totalReserved} min bloqueados en agenda</b></div>
+            <div className="duration-reservation-field">
+              <span>Duración reservada</span>
+              <div className="appointment-duration-summary">
+                <strong>{form.duration} min de servicio</strong>
+                <b>{totalReserved} min bloqueados en agenda</b>
+              </div>
+              <small className="appointment-buffer-detail">{form.bufferBefore || form.bufferAfter ? `Buffer: ${form.bufferBefore} min antes · ${form.bufferAfter} min después` : 'Sin tiempo de buffer'}</small>
+            </div>
             <label><span>Estado</span><select name="status" value={form.status} onChange={update}><option value="pending">Pendiente</option><option value="confirmed">Confirmada</option><option value="completed">Completada</option><option value="cancelled">Cancelada</option><option value="no_show">No asistió</option></select></label>
           </div>
 
           <label><span>Notas</span><textarea name="notes" value={form.notes} onChange={update} rows="3" placeholder="Preferencias, alergias o comentarios..." /></label>
 
-          {error && <div className="modal-error" role="alert">{error}</div>}
+          {error && <div className="modal-error" role="alert">{error?.message ?? error}</div>}
 
           <footer className="modal-actions">
             {appointment?.id && <button className="danger-button" type="button" onClick={() => onDelete(appointment.id)} disabled={saving}>Eliminar</button>}

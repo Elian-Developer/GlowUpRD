@@ -6,6 +6,10 @@ export function buscarEmpleados({ negocioId, incluirInactivos }) {
   return apiRequest(`/api/empleados?${params.toString()}`)
 }
 
+export function obtenerEmpleado(id) {
+  return apiRequest(`/api/empleados/${id}`)
+}
+
 export function crearEmpleado(payload) {
   return apiRequest('/api/empleados', {
     method: 'POST',
