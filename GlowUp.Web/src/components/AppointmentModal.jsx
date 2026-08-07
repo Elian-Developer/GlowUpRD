@@ -47,7 +47,7 @@ function getAvailableTimes(horarios, professionals, date, duration, bufferBefore
   const closesAt = toMinutes(schedule?.cierraA)
   if (!schedule || schedule.cerrado || opensAt === null || closesAt === null) return []
   const employeeTurns = professionals?.find((item) => String(item.id) === String(professionalId))?.horarios?.filter((item) => Number(item.diaSemana) === day && item.activo) ?? []
-  const turns = employeeTurns.length ? employeeTurns.map((turno) => ({ start: Math.max(opensAt, toMinutes(turno.iniciaA) ?? opensAt), end: Math.min(closesAt, toMinutes(turno.terminaA) ?? closesAt) })) : [{ start: opensAt, end: closesAt }]
+  const turns = employeeTurns.map((turno) => ({ start: Math.max(opensAt, toMinutes(turno.iniciaA) ?? opensAt), end: Math.min(closesAt, toMinutes(turno.terminaA) ?? closesAt) }))
   const busyBlocks = [...getBusyBlocks(appointments, professionalId, excludeId), ...getAbsenceBlocks(absences, professionalId, date)]
   return turns.flatMap((turno) => {
     const firstStart = turno.start
